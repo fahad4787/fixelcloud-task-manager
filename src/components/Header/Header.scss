@@ -1,0 +1,202 @@
+// =============================================================================
+// HEADER COMPONENT STYLES
+// =============================================================================
+
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  z-index: var(--z-header);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  background: #fff;
+  
+  // Remove hover effects from header buttons
+  .btn {
+    &:hover {
+      transform: none !important;
+      box-shadow: none !important;
+    }
+    
+    &::before {
+      display: none !important;
+    }
+  }
+  
+  .navbar-brand {
+    .logo-img {
+      width: 150px;
+    }
+    
+    .btn {
+      &:hover {
+        background: transparent !important;
+        transform: none !important;
+        box-shadow: none !important;
+      }
+    }
+  }
+  
+  .navbar-nav {
+    .nav-item {
+      .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+      }
+      
+      .dropdown-toggle {
+        text-decoration: none;
+        color: #495057;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        
+        &:hover {
+          background-color: #f8f9fa;
+        }
+        
+        &::after {
+          margin-left: 0.5rem;
+        }
+      }
+      
+      .user-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #e9ecef;
+      }
+      
+      .user-name {
+        font-weight: 600;
+        color: #495057;
+      }
+    }
+  }
+  
+  .dropdown-menu {
+    border: none;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    padding: 0;
+    min-width: 280px;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: var(--z-dropdown);
+    background: white;
+    margin-top: 0.5rem;
+    
+    .dropdown-header {
+      padding: 1rem 1.5rem;
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border-radius: 12px 12px 0 0;
+      border-bottom: 1px solid #dee2e6;
+      
+      .dropdown-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #fff;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      
+      .dropdown-user-info {
+        h6 {
+          font-weight: 700;
+          color: #212529;
+          margin: 0;
+        }
+        
+        small {
+          font-size: 0.875rem;
+        }
+        
+        .badge {
+          font-size: 0.75rem;
+          padding: 0.375rem 0.75rem;
+          border-radius: 6px;
+        }
+      }
+    }
+    
+    .dropdown-divider {
+      margin: 0;
+      border-color: #e9ecef;
+    }
+    
+    .dropdown-item {
+      padding: 0.75rem 1.5rem;
+      color: #495057;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      
+      &:hover {
+        background-color: #f8f9fa;
+        color: #212529;
+      }
+      
+      &.text-danger {
+        color: #dc3545 !important;
+        
+        &:hover {
+          background-color: #f8d7da;
+          color: #721c24 !important;
+        }
+      }
+    }
+  }
+}
+
+// =============================================================================
+// ANIMATED MENU ICON
+// =============================================================================
+
+.animated-menu-icon {
+  width: 28px;
+  height: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  
+  span {
+    display: block;
+    height: 4px;
+    width: 100%;
+    background: var(--primary-color);
+    border-radius: 2px;
+    transition: 0.3s cubic-bezier(0.4,0,0.2,1);
+  }
+  
+  &.open {
+    span:nth-child(1) {
+      transform: translateY(9px) rotate(45deg);
+    }
+    span:nth-child(2) {
+      opacity: 0;
+    }
+    span:nth-child(3) {
+      transform: translateY(-9px) rotate(-45deg);
+    }
+  }
+}
+
+// =============================================================================
+// APP CONTENT SPACING
+// =============================================================================
+
+.app-content {
+  padding-top: 72px; // adjust to header height
+} 

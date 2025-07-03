@@ -1,0 +1,144 @@
+.signup-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.signup-container {
+  width: 100%;
+  max-width: 500px;
+}
+
+.signup-card {
+  background: var(--white);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-xl);
+  padding: 3rem 2rem;
+  text-align: center;
+}
+
+.signup-header {
+  margin-bottom: 2.5rem;
+
+  .signup-logo {
+    width: 140px;
+    margin-bottom: 1.5rem;
+  }
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--gray-800);
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    font-size: 1rem;
+    color: var(--gray-600);
+  }
+}
+
+.signup-form {
+  margin-bottom: 2.5rem;
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--danger-color);
+  color: white;
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius);
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+  text-align: left;
+
+  label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--gray-700);
+    margin-bottom: 0.5rem;
+  }
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+
+  .input-icon {
+    position: absolute;
+    left: 1rem;
+    color: var(--gray-400);
+    z-index: 1;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    transition: var(--transition);
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(21, 169, 112, 0.1);
+    }
+
+    &.error {
+      border-color: var(--danger-color);
+      box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.1);
+    }
+  }
+
+  .password-toggle {
+    position: absolute;
+    right: 1rem;
+    background: none;
+    border: none;
+    color: var(--gray-400);
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    transition: var(--transition);
+
+    &:hover {
+      color: var(--gray-600);
+    }
+  }
+}
+
+.signup-button {
+  width: 100%;
+  padding: 0.875rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+
+  &:hover:not(:disabled) {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+} 

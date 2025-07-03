@@ -1,0 +1,329 @@
+// =============================================================================
+// MODAL COMPONENT STYLES
+// =============================================================================
+
+// Unified Modal Styles - Override Bootstrap modal styles
+.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: var(--z-modal) !important;
+  padding: 1rem !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  outline: 0 !important;
+}
+
+// =============================================================================
+// MODAL CONTAINER
+// =============================================================================
+
+// Override Bootstrap modal styles with more specific selectors
+.modal-overlay .modal {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  z-index: auto !important;
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  background: var(--white) !important;
+  border-radius: var(--border-radius-lg) !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  box-shadow: var(--shadow-xl) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  outline: none !important;
+  
+  // Override Bootstrap modal variables
+  --bs-modal-margin: 0 !important;
+  --bs-modal-padding: 0 !important;
+  --bs-modal-bg: var(--white) !important;
+  --bs-modal-border-color: transparent !important;
+  --bs-modal-border-width: 0 !important;
+  --bs-modal-border-radius: var(--border-radius-lg) !important;
+  --bs-modal-box-shadow: var(--shadow-xl) !important;
+  
+  // Size variants
+  &--small {
+    max-width: 400px !important;
+  }
+  
+  &--medium {
+    max-width: 500px !important;
+  }
+  
+  &--large {
+    max-width: 700px !important;
+  }
+  
+  &--xlarge {
+    max-width: 900px !important;
+  }
+}
+
+// =============================================================================
+// MODAL HEADER
+// =============================================================================
+
+.modal-overlay .modal .modal-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 1.5rem !important;
+  border-bottom: 1px solid var(--gray-200) !important;
+  background: transparent !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  
+  // Override Bootstrap modal header variables
+  --bs-modal-header-padding-x: 1.5rem !important;
+  --bs-modal-header-padding-y: 1.5rem !important;
+  --bs-modal-header-padding: 1.5rem !important;
+  --bs-modal-header-border-color: var(--gray-200) !important;
+  --bs-modal-header-border-width: 1px !important;
+  
+  .modal-title {
+    font-size: 1.25rem !important;
+    font-weight: 600 !important;
+    color: var(--gray-800) !important;
+    margin: 0 !important;
+    line-height: 1.5 !important;
+  }
+}
+
+// =============================================================================
+// MODAL CLOSE BUTTON
+// =============================================================================
+
+.modal-overlay .modal .modal-close {
+  width: 32px !important;
+  height: 32px !important;
+  border: none !important;
+  background: transparent !important;
+  border-radius: var(--border-radius) !important;
+  cursor: pointer !important;
+  font-size: 1.5rem !important;
+  color: var(--gray-500) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  
+  &:hover {
+    background: var(--gray-100) !important;
+    color: var(--gray-700) !important;
+  }
+}
+
+// =============================================================================
+// MODAL CONTENT
+// =============================================================================
+
+.modal-overlay .modal .modal-content {
+  padding: 1.5rem !important;
+  
+  // For forms inside modal
+  form {
+    .form-group {
+      margin-bottom: 1.5rem !important;
+      
+      label {
+        display: block !important;
+        font-size: 0.875rem !important;
+        font-weight: 500 !important;
+        color: var(--gray-700) !important;
+        margin-bottom: 0.5rem !important;
+      }
+      
+      input,
+      textarea,
+      select {
+        width: 100% !important;
+        padding: 0.75rem !important;
+        border: 1px solid var(--gray-300) !important;
+        border-radius: var(--border-radius) !important;
+        font-size: 0.875rem !important;
+        
+        &:focus {
+          outline: none !important;
+          border-color: var(--primary-color) !important;
+          box-shadow: 0 0 0 3px rgba(21, 169, 112, 0.1) !important;
+        }
+      }
+      
+      textarea {
+        resize: vertical !important;
+        min-height: 80px !important;
+      }
+    }
+    
+    .form-row {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      gap: 1rem !important;
+      
+      @media (max-width: 768px) {
+        grid-template-columns: 1fr !important;
+      }
+    }
+    
+    .modal-actions {
+      display: flex !important;
+      gap: 1rem !important;
+      justify-content: flex-end !important;
+      margin-top: 2rem !important;
+      padding-top: 1.5rem !important;
+      border-top: 1px solid var(--gray-200) !important;
+    }
+  }
+}
+
+// =============================================================================
+// AVATAR UPLOAD STYLES
+// =============================================================================
+
+.modal-overlay .modal .avatar-upload-container {
+  position: relative !important;
+  width: 100% !important;
+  height: 120px !important;
+  border: 2px dashed var(--gray-300) !important;
+  border-radius: var(--border-radius) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  
+  &:hover {
+    border-color: var(--primary-color) !important;
+    background-color: var(--gray-50) !important;
+  }
+}
+
+.modal-overlay .modal .avatar-preview {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  
+  .avatar-image {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: var(--border-radius) !important;
+    object-fit: cover !important;
+  }
+}
+
+.modal-overlay .modal .avatar-placeholder {
+  text-align: center !important;
+  color: var(--gray-500) !important;
+  
+  .avatar-icon {
+    margin-bottom: 0.5rem !important;
+    color: var(--gray-400) !important;
+  }
+  
+  p {
+    margin: 0.25rem 0 !important;
+    font-size: 0.875rem !important;
+  }
+}
+
+// =============================================================================
+// INPUT WRAPPER STYLES
+// =============================================================================
+
+.modal-overlay .modal .input-wrapper {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+
+  .input-icon {
+    position: absolute !important;
+    left: 1rem !important;
+    color: var(--gray-400) !important;
+    z-index: 1 !important;
+  }
+
+  input {
+    padding-left: 2.5rem !important;
+  }
+
+  .password-toggle {
+    position: absolute !important;
+    right: 1rem !important;
+    background: none !important;
+    border: none !important;
+    color: var(--gray-400) !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+
+    &:hover {
+      color: var(--gray-600) !important;
+    }
+  }
+}
+
+// =============================================================================
+// ERROR MESSAGE STYLES
+// =============================================================================
+
+.modal-overlay .modal .error-message {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  background: var(--danger-color) !important;
+  color: white !important;
+  padding: 0.75rem 1rem !important;
+  border-radius: var(--border-radius) !important;
+  margin-bottom: 1.5rem !important;
+  font-size: 0.875rem !important;
+}
+
+// =============================================================================
+// RESPONSIVE DESIGN
+// =============================================================================
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 0.5rem !important;
+  }
+  
+  .modal-overlay .modal {
+    max-height: 95vh !important;
+    
+    &--small,
+    &--medium,
+    &--large,
+    &--xlarge {
+      max-width: 100% !important;
+    }
+  }
+  
+  .modal-overlay .modal .modal-header {
+    padding: 1rem !important;
+    
+    .modal-title {
+      font-size: 1.125rem !important;
+    }
+  }
+  
+  .modal-overlay .modal .modal-content {
+    padding: 1rem !important;
+  }
+} 
