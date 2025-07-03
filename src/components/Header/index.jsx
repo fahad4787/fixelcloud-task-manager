@@ -152,14 +152,16 @@ const Header = ({ onMenuClick, sidebarOpen }) => {
                   transition={{ duration: 0.2 }}
                 >
                   <div className="dropdown-header">
+                   <div className='d-flex justify-content-center'>
                     <img 
                       src={currentUser?.avatar} 
                       alt={currentUser?.name}
                       className="dropdown-avatar me-3"
                     />
+                   </div>
                     <div className="dropdown-user-info">
                       <h6 className="mb-1">{currentUser?.name}</h6>
-                      <small className="text-muted">{currentUser?.email}</small>
+                      <small>{currentUser?.email}</small>
                       <div className="mt-1">
                         <span className="badge bg-primary">{getRoleDisplayName(currentUser?.role)}</span>
                       </div>
@@ -228,6 +230,7 @@ const Header = ({ onMenuClick, sidebarOpen }) => {
               <option value="urgent">Urgent</option>
             </select>
           </div>
+
           <div className="form-group" ref={assigneeDropdownRef}>
             <label>Assignee *</label>
             <div className="position-relative">
@@ -314,7 +317,7 @@ const Header = ({ onMenuClick, sidebarOpen }) => {
             >
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary">
+            <button type="submit" className="btn btn--primary">
               Add Task
             </button>
           </div>

@@ -10,7 +10,8 @@ import {
   where, 
   orderBy,
   onSnapshot,
-  serverTimestamp 
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -26,7 +27,7 @@ export const taskService = {
   // Get all tasks
   async getAllTasks() {
     try {
-      const q = query(collection(db, COLLECTIONS.TASKS), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, COLLECTIONS.TASKS), orderBy('order', 'asc'), orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
@@ -41,6 +42,7 @@ export const taskService = {
       const q = query(
         collection(db, COLLECTIONS.TASKS), 
         where('status', '==', status),
+        orderBy('order', 'asc'),
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);
@@ -57,7 +59,7 @@ export const taskService = {
       const q = query(
         collection(db, COLLECTIONS.TASKS), 
         where('team', '==', team),
-        orderBy('createdAt', 'desc')
+        orderBy('order', 'asc')
       );
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -73,7 +75,7 @@ export const taskService = {
       const q = query(
         collection(db, COLLECTIONS.TASKS), 
         where('assignee', '==', assigneeId),
-        orderBy('createdAt', 'desc')
+        orderBy('order', 'asc')
       );
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -92,6 +94,28 @@ export const taskService = {
         updatedAt: serverTimestamp()
       };
       const docRef = await addDoc(collection(db, COLLECTIONS.TASKS), taskWithTimestamp);
+      
+      // If the new task has order 0, shift all existing tasks in the same column down by 1
+      if (taskData.order === 0) {
+        const batch = writeBatch(db);
+        const q = query(
+          collection(db, COLLECTIONS.TASKS), 
+          where('status', '==', taskData.status),
+          where('order', '>=', 0)
+        );
+        const snapshot = await getDocs(q);
+        
+        snapshot.docs.forEach(doc => {
+          if (doc.id !== docRef.id) { // Don't update the new task
+            batch.update(doc.ref, { order: doc.data().order + 1 });
+          }
+        });
+        
+        if (snapshot.docs.length > 0) {
+          await batch.commit();
+        }
+      }
+      
       return { id: docRef.id, ...taskData };
     } catch (error) {
       console.error('Error creating task:', error);
@@ -144,11 +168,27 @@ export const taskService = {
 
   // Listen to tasks changes
   subscribeToTasks(callback) {
-    const q = query(collection(db, COLLECTIONS.TASKS), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, COLLECTIONS.TASKS), orderBy('order', 'asc'));
     return onSnapshot(q, (snapshot) => {
       const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       callback(tasks);
     });
+  },
+
+  // Update order of tasks in a column
+  async updateTaskOrder(taskIds) {
+    try {
+      const batch = writeBatch(db);
+      for (let i = 0; i < taskIds.length; i++) {
+        const taskRef = doc(db, COLLECTIONS.TASKS, taskIds[i]);
+        batch.update(taskRef, { order: i });
+      }
+      await batch.commit();
+      return true;
+    } catch (error) {
+      console.error('Error updating task order:', error);
+      throw error;
+    }
   }
 };
 

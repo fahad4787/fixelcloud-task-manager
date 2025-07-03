@@ -285,7 +285,7 @@ const UserManagement = () => {
                   </span>
                 </div>
                 <div className="detail-item">
-                  <span className="label">Permissions:</span>
+                  <span className="label"><b>Permissions:</b></span>
                   <span className="value">
                     {user.permissions?.includes('all') ? 'All' : user.permissions?.join(', ') || 'None'}
                   </span>

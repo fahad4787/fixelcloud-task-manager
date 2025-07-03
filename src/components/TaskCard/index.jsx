@@ -67,6 +67,15 @@ const TaskCard = ({ task, compact = false, showActions = true, onEdit, onDelete 
     }
   };
 
+  const getRoleColor = (role) => {
+    switch (role?.toLowerCase()) {
+      case 'developer': return 'primary';
+      case 'designer': return 'info';
+      case 'bd': return 'warning';
+      default: return 'secondary';
+    }
+  };
+
   if (compact) {
     return (
       <motion.div 
@@ -107,7 +116,11 @@ const TaskCard = ({ task, compact = false, showActions = true, onEdit, onDelete 
           )}
           <div className="d-flex justify-content-between align-items-center">
             <div className="d-flex align-items-center gap-2">
-              <span className="badge bg-light text-dark small">{task.team}</span>
+              {(task.team || (assignee && assignee.role)) && (
+                <span className={`badge bg-${getRoleColor(task.team || assignee?.role)} small`}>
+                  {task.team || (assignee && assignee.role)}
+                </span>
+              )}
               {assignee && (
                 <div className="d-flex align-items-center gap-1 small text-muted">
                   <img 
@@ -160,6 +173,11 @@ const TaskCard = ({ task, compact = false, showActions = true, onEdit, onDelete 
         )}
             <div className="badge-row">
               <span className={`badge bg-${getPriorityColor(task.priority)}`}>{task.priority}</span>
+              {(task.team || (assignee && assignee.role)) && (
+                <span className={`badge bg-${getRoleColor(task.team || assignee?.role)}`}>
+                  {task.team || (assignee && assignee.role)}
+                </span>
+              )}
             </div>
           </div>
           
@@ -256,6 +274,7 @@ const TaskCard = ({ task, compact = false, showActions = true, onEdit, onDelete 
       
         
         <div className="task-meta">
+          
           {assignee && (
             <div className="meta-item">
               <FiUser size={14} />

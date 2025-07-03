@@ -80,6 +80,8 @@ const taskReducer = (state, action) => {
         )
       };
     
+
+    
     case actionTypes.SET_EMPLOYEES:
       return {
         ...state,
@@ -162,10 +164,13 @@ export const TaskProvider = ({ children }) => {
   // Actions
   const addTask = async (taskData) => {
     try {
+      // Find the number of tasks in the target column
+      const status = taskData.status || 'todo';
+      const tasksInColumn = state.tasks.filter(task => task.status === status);
       const newTask = {
         title: taskData.title,
         description: taskData.description,
-        status: taskData.status || 'todo',
+        status,
         priority: taskData.priority || 'medium',
         assignee: taskData.assignee || null,
         createdBy: state.currentUser?.uid || 'system',
@@ -174,7 +179,8 @@ export const TaskProvider = ({ children }) => {
         comments: [],
         attachments: [],
         timeSpent: 0,
-        estimatedTime: taskData.estimatedTime || 0
+        estimatedTime: taskData.estimatedTime || 0,
+        order: 0 // <-- set order to 0 to put at the top
       };
 
       await taskService.createTask(newTask);
@@ -212,6 +218,17 @@ export const TaskProvider = ({ children }) => {
     } catch (error) {
       toast.error('Failed to move task');
       console.error('Error moving task:', error);
+    }
+  };
+
+  // Reorder tasks in a column and persist to Firebase
+  const reorderTasksInColumn = async (columnId, orderedTaskIds) => {
+    try {
+      await taskService.updateTaskOrder(orderedTaskIds);
+      toast.success('Task order updated!');
+    } catch (error) {
+      toast.error('Failed to update task order');
+      console.error('Error updating task order:', error);
     }
   };
 
@@ -300,6 +317,7 @@ export const TaskProvider = ({ children }) => {
     updateTask,
     deleteTask,
     moveTask,
+    reorderTasksInColumn,
     addEmployee,
     updateEmployee,
     deleteEmployee,

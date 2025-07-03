@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiFilter,
@@ -21,7 +20,9 @@ const ProjectBoard = () => {
   const { currentUser, canEditTasks, canDeleteTasks, canMoveTasks, canManageTasks } = useAuth();
   const { 
     tasksByStatus, 
+    tasks,
     moveTask, 
+    reorderTasksInColumn,
     updateTask,
     deleteTask,
     employees
@@ -29,28 +30,36 @@ const ProjectBoard = () => {
 
   const [editingTask, setEditingTask] = useState(null);
   const [filters, setFilters] = useState({
-    team: 'all',
     priority: 'all',
-    assignee: 'all'
+    role: 'all',
+    search: ''
   });
   const [showFilters, setShowFilters] = useState(false);
   const [showCompleted, setShowCompleted] = useState(true);
+  const [activeFilters, setActiveFilters] = useState(0);
+  
+  // Local state for reordering within columns
+  const [columnTasks, setColumnTasks] = useState({
+    todo: [],
+    'in-progress': [],
+    review: [],
+    done: []
+  });
 
-  const handleDragEnd = (result) => {
-    if (!result.destination || !canMoveTasks()) return;
-
-    const { source, destination, draggableId } = result;
+  // Update local column tasks when tasksByStatus changes
+  React.useEffect(() => {
+    // Debug: Check what data we have
+    console.log('Tasks data:', tasksByStatus);
+    console.log('Employees data:', employees);
+    console.log('Current filters:', filters);
     
-    if (source.droppableId === destination.droppableId) {
-      // Same column - reorder
-      return;
-    }
-
-    // Move task to new status
-    moveTask(draggableId, destination.droppableId);
-  };
-
-
+    setColumnTasks({
+      todo: getFilteredTasks(tasksByStatus.todo),
+      'in-progress': getFilteredTasks(tasksByStatus['in-progress']),
+      review: getFilteredTasks(tasksByStatus.review),
+      done: showCompleted ? getFilteredTasks(tasksByStatus.done) : []
+    });
+  }, [tasksByStatus, filters, showCompleted]);
 
   const handleEditTask = (e) => {
     e.preventDefault();
@@ -68,9 +77,36 @@ const ProjectBoard = () => {
 
   const getFilteredTasks = (tasks) => {
     return tasks.filter(task => {
-      if (filters.team !== 'all' && task.team !== filters.team) return false;
+      // Priority filter
       if (filters.priority !== 'all' && task.priority !== filters.priority) return false;
-      if (filters.assignee !== 'all' && task.assignee !== filters.assignee) return false;
+      
+      // Role filter
+      if (filters.role !== 'all') {
+        const taskRole = task.team || (task.assignee && employees.find(emp => emp.id === task.assignee)?.role);
+        console.log('Role filter check:', {
+          taskId: task.id,
+          taskTeam: task.team,
+          assigneeRole: task.assignee && employees.find(emp => emp.id === task.assignee)?.role,
+          taskRole,
+          filterRole: filters.role,
+          matches: taskRole === filters.role
+        });
+        
+        // Check if task has the selected role (case-insensitive)
+        const hasRole = taskRole && taskRole.toLowerCase() === filters.role.toLowerCase();
+        if (!hasRole) return false;
+      }
+      
+      // Search filter
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const titleMatch = task.title.toLowerCase().includes(searchTerm);
+        const descriptionMatch = task.description?.toLowerCase().includes(searchTerm);
+        const assigneeMatch = employees.find(emp => emp.id === task.assignee)?.name.toLowerCase().includes(searchTerm);
+        
+        if (!titleMatch && !descriptionMatch && !assigneeMatch) return false;
+      }
+      
       return true;
     });
   };
@@ -80,31 +116,146 @@ const ProjectBoard = () => {
       id: 'todo',
       title: 'To Do',
       color: 'var(--gray-500)',
-      tasks: tasksByStatus.todo
+      tasks: columnTasks.todo
     },
     {
       id: 'in-progress',
       title: 'In Progress',
       color: 'var(--warning-color)',
-      tasks: tasksByStatus['in-progress']
+      tasks: columnTasks['in-progress']
     },
     {
       id: 'review',
       title: 'Review',
       color: 'var(--accent-color)',
-      tasks: tasksByStatus.review
+      tasks: columnTasks.review
     },
     {
       id: 'done',
       title: 'Done',
       color: 'var(--success-color)',
-      tasks: showCompleted ? tasksByStatus.done : []
+      tasks: columnTasks.done
     }
   ];
 
-  const teams = ['Designer', 'Developer', 'BD'];
   const priorities = ['low', 'medium', 'high', 'urgent'];
-  const assignees = employees.filter(emp => emp.isActive);
+  
+  // Get unique roles from employees
+  const availableRoles = [...new Set(employees.map(emp => emp.role).filter(Boolean))];
+  const roles = availableRoles.length > 0 ? availableRoles : ['Developer', 'Designer', 'BD'];
+  
+  console.log('Available roles from employees:', availableRoles);
+  console.log('Using roles:', roles);
+
+  // Count active filters
+  React.useEffect(() => {
+    let count = 0;
+    if (filters.priority !== 'all') count++;
+    if (filters.role !== 'all') count++;
+    if (filters.search) count++;
+    setActiveFilters(count);
+  }, [filters]);
+
+  const clearAllFilters = () => {
+    setFilters({ priority: 'all', role: 'all', search: '' });
+  };
+
+  // Drag and drop functionality
+  const [draggedTask, setDraggedTask] = useState(null);
+  const [dragOverColumn, setDragOverColumn] = useState(null);
+  const [dropIndex, setDropIndex] = useState(null);
+
+  const handleDragStart = (e, taskId) => {
+    if (!canMoveTasks()) {
+      e.preventDefault();
+      return;
+    }
+    setDraggedTask(taskId);
+    e.dataTransfer.setData('text/plain', taskId);
+    e.target.style.opacity = '0.5';
+  };
+
+  const handleDragEnd = (e) => {
+    setDraggedTask(null);
+    setDragOverColumn(null);
+    setDropIndex(null);
+    e.target.style.opacity = '1';
+  };
+
+  const handleDragOver = (e, columnId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverColumn(columnId);
+    
+    // Calculate drop position for same column reordering
+    if (draggedTask) {
+      const currentTask = tasks.find(task => task.id === draggedTask);
+      if (currentTask && currentTask.status === columnId) {
+        const columnElement = e.currentTarget;
+        const taskElements = columnElement.querySelectorAll('.task-card-wrapper');
+        let targetIndex = columnTasks[columnId].length;
+        
+        for (let i = 0; i < taskElements.length; i++) {
+          const rect = taskElements[i].getBoundingClientRect();
+          const centerY = rect.top + rect.height / 2;
+          
+          if (e.clientY < centerY) {
+            targetIndex = i;
+            break;
+          }
+        }
+        
+        setDropIndex(targetIndex);
+      } else {
+        setDropIndex(null);
+      }
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverColumn(null);
+    setDropIndex(null);
+  };
+
+  const handleDrop = (e, columnId) => {
+    e.preventDefault();
+    setDragOverColumn(null);
+    setDropIndex(null);
+    
+    const taskId = e.dataTransfer.getData('text/plain');
+    if (taskId && columnId) {
+      // Find the current status of the task
+      const currentTask = tasks.find(task => task.id === taskId);
+      
+      if (currentTask) {
+        if (currentTask.status !== columnId) {
+          // Cross-column movement
+          moveTask(taskId, columnId);
+        } else {
+          // Same column reordering
+          const sourceIndex = columnTasks[columnId].findIndex(task => task.id === taskId);
+          if (sourceIndex !== -1 && dropIndex !== null && sourceIndex !== dropIndex) {
+            const newTasks = [...columnTasks[columnId]];
+            const [removed] = newTasks.splice(sourceIndex, 1);
+            newTasks.splice(dropIndex, 0, removed);
+            
+            // Update local state immediately for better UX
+            setColumnTasks(prev => ({
+              ...prev,
+              [columnId]: newTasks
+            }));
+            
+            // Persist the new order to Firebase
+            console.log('Reordering tasks:', columnId, newTasks.map(t => t.id));
+            reorderTasksInColumn(columnId, newTasks.map(t => t.id));
+          }
+        }
+      }
+    }
+    
+    // Reset drag state
+    setDraggedTask(null);
+  };
 
   return (
     <div className="page-container">
@@ -113,13 +264,26 @@ const ProjectBoard = () => {
         subtitle="Drag and drop tasks to manage workflow"
         icon={FiTrello}
         filters={
-          <div className="header-actions flex gap-2">
+          <div className="header-actions">
+            <div className="search-box">
+              <FiSearch size={16} />
+              <input
+                type="text"
+                placeholder="Search tasks..."
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                className="search-input"
+              />
+            </div>
             <button 
-              className="btn btn--secondary"
+              className={`btn btn--secondary filter-btn ${activeFilters > 0 ? 'has-filters' : ''}`}
               onClick={() => setShowFilters(!showFilters)}
             >
               <FiFilter size={16} />
               Filters
+              {activeFilters > 0 && (
+                <span className="filter-badge">{activeFilters}</span>
+              )}
             </button>
             <button 
               className="btn btn--secondary"
@@ -137,114 +301,122 @@ const ProjectBoard = () => {
         {showFilters && (
           <motion.div 
             className="filters-panel"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+            initial={{ opacity: 0, height: 0, y: -20 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -20 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
           >
-            <div className="filter-group">
-              <label>Team</label>
-              <select
-                value={filters.team}
-                onChange={(e) => setFilters({ ...filters, team: e.target.value })}
-              >
-                <option value="all">All Teams</option>
-                {teams.map(team => (
-                  <option key={team} value={team}>{team}</option>
-                ))}
-              </select>
+            <div className="filters-header">
+              <h4>Filter Tasks</h4>
+              {activeFilters > 0 && (
+                <button 
+                  className="clear-filters-btn"
+                  onClick={clearAllFilters}
+                >
+                  Clear All ({activeFilters})
+                </button>
+              )}
             </div>
-            <div className="filter-group">
-              <label>Priority</label>
-              <select
-                value={filters.priority}
-                onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
-              >
-                <option value="all">All Priorities</option>
-                {priorities.map(priority => (
-                  <option key={priority} value={priority}>
-                    {priority.charAt(0).toUpperCase() + priority.slice(1)}
-                  </option>
-                ))}
-              </select>
+            
+            <div className="filters-grid">
+              <div className="filter-group">
+                <label>Priority</label>
+                <select
+                  value={filters.priority}
+                  onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
+                  className="filter-select"
+                >
+                  <option value="all">All Priorities</option>
+                  {priorities.map(priority => (
+                    <option key={priority} value={priority}>
+                      {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="filter-group">
+                <label>Role</label>
+                <select
+                  value={filters.role}
+                  onChange={(e) => setFilters({ ...filters, role: e.target.value })}
+                  className="filter-select"
+                >
+                  <option value="all">All Roles</option>
+                  {roles.map(role => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="filter-group">
-              <label>Assignee</label>
-              <select
-                value={filters.assignee}
-                onChange={(e) => setFilters({ ...filters, assignee: e.target.value })}
-              >
-                <option value="all">All Assignees</option>
-                {assignees.map(assignee => (
-                  <option key={assignee.id} value={assignee.id}>
-                    {assignee.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button 
-              className="btn btn--outline"
-              onClick={() => setFilters({ team: 'all', priority: 'all', assignee: 'all' })}
-            >
-              Clear Filters
-            </button>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Project Board Columns */}
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="project-board-columns">
-          {columns.map((column) => (
-            <div key={column.id} className="project-board-column">
-              <div className="column-header">
-                <h3 className="column-title" style={{ color: column.color }}>
-                  {column.title}
-                </h3>
-                <span className="column-count">
-                  {getFilteredTasks(column.tasks).length}
-                </span>
-              </div>
-              
-              <Droppable droppableId={column.id}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className={`column-content ${snapshot.isDraggingOver ? 'dragging-over' : ''}`}
-                  >
-                    {getFilteredTasks(column.tasks).map((task, index) => (
-                      <Draggable 
-                        key={task.id} 
-                        draggableId={task.id} 
-                        index={index}
-                        isDragDisabled={!canMoveTasks()}
-                      >
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            className={`task-card-wrapper ${snapshot.isDragging ? 'dragging' : ''}`}
-                          >
-                            <TaskCard 
-                              task={task}
-                              onEdit={canEditTasks() ? () => { console.log('setEditingTask called', task); setEditingTask(task); } : undefined}
-                              onDelete={canDeleteTasks() ? () => handleDeleteTask(task.id) : undefined}
-                            />
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
+      <div className="project-board-columns">
+        {columns.map((column) => (
+          <div key={column.id} className="project-board-column">
+            <div className="column-header">
+              <h3 className="column-title" style={{ color: column.color }}>
+                {column.title}
+              </h3>
+              <span className="column-count">
+                {column.tasks.length}
+              </span>
             </div>
-          ))}
-        </div>
-      </DragDropContext>
-
-
+            
+            <div 
+              className={`column-content ${dragOverColumn === column.id ? 'drag-over' : ''}`}
+              onDragOver={(e) => handleDragOver(e, column.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, column.id)}
+            >
+              {column.tasks.length === 0 ? (
+                <div className="empty-column">
+                  <span>No tasks in this column</span>
+                </div>
+              ) : (
+                <>
+                  {column.tasks.map((task, index) => (
+                    <React.Fragment key={task.id}>
+                      {/* Drop indicator */}
+                      {dragOverColumn === column.id && 
+                       dropIndex === index && 
+                       draggedTask !== task.id && (
+                        <div className="drop-indicator" />
+                      )}
+                      
+                      <div 
+                        className={`task-card-wrapper ${draggedTask === task.id ? 'dragging' : ''}`}
+                        draggable={canMoveTasks()}
+                        data-task-id={task.id}
+                        onDragStart={(e) => handleDragStart(e, task.id)}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <TaskCard 
+                          task={task}
+                          onEdit={canEditTasks() ? () => setEditingTask(task) : undefined}
+                          onDelete={canDeleteTasks() ? () => handleDeleteTask(task.id) : undefined}
+                        />
+                      </div>
+                    </React.Fragment>
+                  ))}
+                  
+                  {/* Drop indicator at the end */}
+                  {dragOverColumn === column.id && 
+                   dropIndex === column.tasks.length && 
+                   draggedTask && (
+                    <div className="drop-indicator" />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Edit Task Modal */}
       <Modal

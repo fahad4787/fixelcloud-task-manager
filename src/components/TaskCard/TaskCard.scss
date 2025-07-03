@@ -7,11 +7,11 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   border-radius: 12px;
   transition: all 0.3s ease;
-  cursor: pointer;
   position: relative;
   overflow: visible !important;
   background: #fff;
   padding: 0 !important;
+  user-select: none;
   
   &:hover {
     transform: translateY(-4px);
@@ -19,9 +19,7 @@
     z-index: 999999 !important;
   }
   
-  .card-body {
-    padding: 1.5rem;
-  }
+ 
   
   .card-title {
     font-weight: 600;
@@ -189,6 +187,45 @@
   height: 24px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid;
+  
+  // Developer role
+  &.bg-primary {
+    background: #e3f2fd !important;
+    color: #1976d2 !important;
+    border-color: #bbdefb !important;
+  }
+  
+  // Designer role
+  &.bg-info {
+    background: #e0f2f1 !important;
+    color: #00796b !important;
+    border-color: #b2dfdb !important;
+  }
+  
+  // BD role
+  &.bg-warning {
+    background: #fff3e0 !important;
+    color: #f57c00 !important;
+    border-color: #ffcc02 !important;
+  }
+  
+  // Default role
+  &.bg-secondary {
+    background: #f5f5f5 !important;
+    color: #616161 !important;
+    border-color: #e0e0e0 !important;
+  }
 }
 
 // =============================================================================
