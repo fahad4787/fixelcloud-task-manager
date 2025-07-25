@@ -7,6 +7,7 @@
 :root {
   // Color System
   --primary-color: #15a970;
+  --primary-hover: #0f8a5a;
   --primary-light: #1ed4a3;
   --primary-dark: #0f8a5a;
   --secondary-color: #6366f1;
@@ -308,12 +309,12 @@ body {
     color: #388e3c;
   }
   
-  &--admin {
+  &--manager {
     background-color: #fff3e0;
     color: #f57c00;
   }
   
-  &--super_admin {
+  &--super_manager {
     background-color: #ffebee;
     color: #d32f2f;
   }

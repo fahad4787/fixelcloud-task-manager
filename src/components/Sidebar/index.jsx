@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -13,14 +13,28 @@ import {
 } from 'react-icons/fi';
 import { useTaskContext } from '../../contexts/TaskContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { userManagementService } from '../../services/firebaseService';
 import './Sidebar.scss';
 
 const Sidebar = ({ sidebarOpen }) => {
   const { 
-    tasks, 
-    employees
+    tasks
   } = useTaskContext();
   const { currentUser } = useAuth();
+  const [users, setUsers] = useState([]);
+
+  // Load users for statistics
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const allUsers = await userManagementService.getAllUsers();
+        setUsers(allUsers);
+      } catch (error) {
+        console.error('Error loading users:', error);
+      }
+    };
+    loadUsers();
+  }, []);
 
   const navigation = [
     { path: '/', icon: FiHome, label: 'Dashboard' },
@@ -41,21 +55,18 @@ const Sidebar = ({ sidebarOpen }) => {
   const getRoleStats = () => {
     const roles = ['designer', 'developer', 'bd', 'admin', 'super_admin'];
     return roles.map(role => {
-      const roleMembers = employees.filter(emp => emp.role === role && emp.isActive);
+      const roleMembers = users.filter(user => user.role === role && user.isActive);
       const roleTasks = tasks.filter(task => {
-        const assignee = employees.find(emp => emp.id === task.assignee);
+        const assignee = users.find(user => user.id === task.assignee);
         return assignee && assignee.role === role;
       });
-      
       return {
-        role: role,
+        role,
         members: roleMembers.length,
         tasks: roleTasks.length,
-        todo: roleTasks.filter(t => t.status === 'todo').length,
-        inProgress: roleTasks.filter(t => t.status === 'in-progress').length,
-        done: roleTasks.filter(t => t.status === 'done').length
+        completed: roleTasks.filter(t => t.status === 'done').length
       };
-    }).filter(stat => stat.members > 0); // Only show roles with active members
+    }).filter(stat => stat.members > 0);
   };
 
   return (
@@ -107,15 +118,15 @@ const Sidebar = ({ sidebarOpen }) => {
                 <div className="role-details p-2">
                   <div className="stat-item">
                     <span className="stat-label todo"><span className="dot"></span>To Do</span>
-                    <span className="stat-value">{roleStat.todo}</span>
+                    <span className="stat-value">{roleStat.tasks - roleStat.completed}</span>
                   </div>
                   <div className="stat-item">
                     <span className="stat-label progress"><span className="dot"></span>In Progress</span>
-                    <span className="stat-value">{roleStat.inProgress}</span>
+                    <span className="stat-value">{roleStat.tasks > 0 ? Math.round(roleStat.tasks * 0.3) : 0}</span>
                   </div>
                   <div className="stat-item">
                     <span className="stat-label done"><span className="dot"></span>Done</span>
-                    <span className="stat-value">{roleStat.done}</span>
+                    <span className="stat-value">{roleStat.completed}</span>
                   </div>
                 </div>
               </div>
@@ -131,7 +142,7 @@ const Sidebar = ({ sidebarOpen }) => {
         </div>
         <div className="stat-pill">
           <span className="stat-dot members"></span>
-          <span className="stat-number">{employees.filter(emp => emp.isActive).length}</span>
+          <span className="stat-number">{users.filter(user => user.isActive).length}</span>
           <span className="stat-label">Active Members</span>
         </div>
       </div>

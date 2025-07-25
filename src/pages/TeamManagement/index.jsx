@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiPlus, 
@@ -10,128 +10,285 @@ import {
   FiCalendar,
   FiCheckCircle,
   FiClock,
-  FiUserPlus
+  FiUserPlus,
+  FiShield,
+  FiUserCheck,
+  FiUserX,
+  FiEye,
+  FiEyeOff
 } from 'react-icons/fi';
-import { useTaskContext } from '../../contexts/TaskContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { userManagementService } from '../../services/firebaseService';
 import { formatTimestamp } from '../../utils/dateUtils';
 import Modal from '../../components/Modal';
 import PageTitle from '../../components/PageTitle';
 import './TeamManagement.scss';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { db } from '../../firebase';
+import { setDoc, doc } from 'firebase/firestore';
 
 const TeamManagement = () => {
-  const { 
-    employees, 
-    addEmployee, 
-    updateEmployee, 
-    deleteEmployee,
-    getTasksByAssignee,
-    getEmployeesByRole 
-  } = useTaskContext();
-  const { canManageEmployees, currentUser } = useAuth();
-
-  const [showAddEmployee, setShowAddEmployee] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState(null);
-  const [newEmployee, setNewEmployee] = useState({
+  const { currentUser, canManageEmployees } = useAuth();
+  const [users, setUsers] = useState([]);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [newUser, setNewUser] = useState({
     name: '',
     email: '',
+    password: '',
+    confirmPassword: '',
     role: 'designer',
-    avatar: ''
+    permissions: []
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const employeesPerPage = 6;
+  const usersPerPage = 6;
 
-  const handleAddEmployee = (e) => {
+  // Load users on mount
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const allUsers = await userManagementService.getAllUsers();
+      setUsers(allUsers);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+
+  const handleAddUser = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     
-    // Check if required fields are filled
-    if (!newEmployee.name.trim()) {
+    // Validate passwords
+    if (newUser.password !== newUser.confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
       return;
     }
-    if (!newEmployee.email.trim()) {
+
+    if (newUser.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      setLoading(false);
       return;
     }
     
-      addEmployee(newEmployee);
-      setNewEmployee({
+    // Check if trying to create super manager and one already exists
+    if (newUser.role === 'super_manager') {
+      const existingSuperManager = users.find(user => user.role === 'super_manager');
+      if (existingSuperManager) {
+        setError('A Super Manager already exists. Only one Super Manager is allowed.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    try {
+      // Set user permissions based on role
+      let permissions = [];
+      switch (newUser.role) {
+        case 'super_manager':
+          permissions = ['all'];
+          break;
+        case 'manager':
+          permissions = ['edit_tasks', 'delete_tasks', 'move_tasks', 'manage_tasks', 'assign_tasks'];
+          break;
+        case 'designer':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+          break;
+        case 'developer':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+          break;
+        case 'bd':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+          break;
+        default:
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+      }
+
+      // Create user profile in Firestore first
+      const userProfile = {
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        permissions: permissions,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newUser.name)}&background=15a970&color=fff`,
+        isActive: true,
+        createdBy: currentUser.uid,
+        createdAt: new Date()
+      };
+
+      // Create user using the service that handles sign-out
+      await userManagementService.createUserWithoutSignIn({
+        name: newUser.name,
+        email: newUser.email,
+        password: newUser.password,
+        role: newUser.role,
+        permissions: permissions
+      });
+
+      // Reset form
+      setNewUser({
         name: '',
         email: '',
+        password: '',
+        confirmPassword: '',
         role: 'designer',
-        avatar: ''
+        permissions: []
       });
-      setShowAddEmployee(false);
+      setShowAddUser(false);
+      
+      // Reload users
+      await loadUsers();
+    } catch (error) {
+      console.error('Error creating user:', error);
+      if (error.code === 'auth/email-already-in-use') {
+        setError('Email already exists');
+      } else {
+        setError('Failed to create user');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEditEmployee = (e) => {
+  const handleEditUser = async (e) => {
     e.preventDefault();
-    if (editingEmployee.name.trim() && editingEmployee.email.trim()) {
-      updateEmployee(editingEmployee.id, editingEmployee);
-      setEditingEmployee(null);
+    setLoading(true);
+    setError('');
+
+    // Check if trying to change role to super manager and one already exists
+    if (editingUser.role === 'super_manager') {
+      const existingSuperManager = users.find(user => 
+        user.role === 'super_manager' && user.id !== editingUser.id
+      );
+      if (existingSuperManager) {
+        setError('A Super Manager already exists. Only one Super Manager is allowed.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    try {
+      // Set user permissions based on role
+      let permissions = [];
+      switch (editingUser.role) {
+        case 'super_manager':
+          permissions = ['all'];
+          break;
+        case 'manager':
+          permissions = ['edit_tasks', 'delete_tasks', 'move_tasks', 'manage_tasks', 'assign_tasks'];
+          break;
+        case 'designer':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+          break;
+        case 'developer':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+          break;
+        case 'bd':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+          break;
+        default:
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+      }
+
+      await userManagementService.updateUserRole(editingUser.id, editingUser.role, permissions);
+      setEditingUser(null);
+      await loadUsers();
+    } catch (error) {
+      console.error('Error updating user:', error);
+      setError('Failed to update user');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDeleteEmployee = (employeeId) => {
-    if (window.confirm('Are you sure you want to delete this employee?')) {
-      deleteEmployee(employeeId);
+  const handleDeleteUser = async (userId) => {
+    if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      try {
+        // Note: This would require additional Firebase Auth manager SDK for production
+        // For now, we'll just mark the user as inactive
+        await userManagementService.updateUserRole(userId, 'inactive', []);
+        await loadUsers();
+      } catch (error) {
+        console.error('Error deleting user:', error);
+      }
     }
   };
 
-  const getEmployeeStats = (employeeId) => {
-    const tasks = getTasksByAssignee(employeeId);
-    return {
-      total: tasks.length,
-      completed: tasks.filter(t => t.status === 'done').length,
-      inProgress: tasks.filter(t => t.status === 'in-progress').length,
-      todo: tasks.filter(t => t.status === 'todo').length
-    };
+  const getRoleBadgeColor = (role) => {
+    switch (role) {
+      case 'super_manager': return 'danger';
+      case 'manager': return 'warning';
+      case 'designer': return 'info';
+      case 'developer': return 'primary';
+      case 'bd': return 'success';
+      default: return 'secondary';
+    }
+  };
+
+  const getRoleDisplayName = (role) => {
+    switch (role) {
+      case 'super_manager': return 'Super Manager';
+      case 'manager': return 'Manager';
+      case 'designer': return 'Designer';
+      case 'developer': return 'Developer';
+      case 'bd': return 'Business Developer';
+      default: return role;
+    }
   };
 
   const roles = [
-    { value: 'designer', label: 'Designer' },
-    { value: 'developer', label: 'Developer' },
-    { value: 'bd', label: 'Business Development' }
+    { value: 'designer', label: 'Designer', description: 'Can manage design tasks and assign to team' },
+    { value: 'developer', label: 'Developer', description: 'Can manage development tasks and assign to team' },
+    { value: 'bd', label: 'Business Developer', description: 'Can manage business tasks and assign to team' },
+    { value: 'manager', label: 'Manager', description: 'Can edit, delete, and manage all tasks' },
+    { value: 'super_manager', label: 'Super Manager', description: 'Full access to all features' }
   ];
 
-  const activeEmployees = employees.filter(emp => emp.isActive);
-  const inactiveEmployees = employees.filter(emp => !emp.isActive);
+  const activeUsers = users.filter(user => user.isActive);
+  const inactiveUsers = users.filter(user => !user.isActive);
   
   // Pagination logic
-  const indexOfLastEmployee = currentPage * employeesPerPage;
-  const indexOfFirstEmployee = indexOfLastEmployee - employeesPerPage;
-  const currentEmployees = activeEmployees.slice(indexOfFirstEmployee, indexOfLastEmployee);
-  const totalPages = Math.ceil(activeEmployees.length / employeesPerPage);
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = activeUsers.slice(indexOfFirstUser, indexOfLastUser);
+  const totalPages = Math.ceil(activeUsers.length / usersPerPage);
 
-  const handleImageChange = (e, isEdit = false) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (isEdit) {
-          setEditingEmployee({ ...editingEmployee, avatar: reader.result });
-        } else {
-          setNewEmployee({ ...newEmployee, avatar: reader.result });
-        }
+  // Get role-based statistics
+  const getRoleStats = () => {
+    const roles = ['designer', 'developer', 'bd', 'manager', 'super_manager'];
+    return roles.map(role => {
+      const roleMembers = users.filter(user => user.role === role && user.isActive);
+      
+      return {
+        role: role,
+        members: roleMembers.length,
+        displayName: getRoleDisplayName(role)
       };
-      reader.readAsDataURL(file);
-    }
+    }).filter(stat => stat.members > 0); // Only show roles with active members
   };
-
-
 
   return (
     <div className="page-container">
       <PageTitle 
         title="Team Management"
-        subtitle="Manage team members, roles, and permissions"
+        subtitle="Manage team members and their roles"
         icon={FiUsers}
         actions={
           canManageEmployees() && (
             <button 
               className="btn btn--primary"
-              onClick={() => setShowAddEmployee(true)}
+              onClick={() => setShowAddUser(true)}
             >
               <FiUserPlus size={16} />
-              Add Employee
+              Add Team Member
             </button>
           )
         }
@@ -141,59 +298,47 @@ const TeamManagement = () => {
       <div className="teams-overview">
         <h2>Roles Overview</h2>
         <div className="teams-grid">
-          {roles.map((role, index) => {
-            const roleMembers = employees.filter(emp => emp.role === role.value);
-            const roleTasks = roleMembers.reduce((total, member) => {
-              const memberTasks = getTasksByAssignee(member.id);
-              return total + memberTasks.length;
-            }, 0);
-            
-            return (
+          {getRoleStats().map((roleStat, index) => (
               <motion.div
-                key={role.value}
+              key={roleStat.role}
                 className="team-card"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
               >
                 <div className="team-header">
-                  <h3>{role.label}</h3>
-                  <span className="member-count">{roleMembers.length} members</span>
+                <h3>{roleStat.displayName}</h3>
+                <span className="member-count">{roleStat.members} members</span>
                 </div>
                 <div className="team-stats">
                   <div className="stat">
-                    <span className="stat-value">{roleMembers.length}</span>
+                  <span className="stat-value">{roleStat.members}</span>
                     <span className="stat-label">Members</span>
-                  </div>
-                  <div className="stat">
-                    <span className="stat-value">{roleTasks}</span>
-                    <span className="stat-label">Tasks</span>
                   </div>
                 </div>
                 <div className="team-members">
-                  {roleMembers.slice(0, 3).map(member => (
-                    <div key={member.id} className="member-avatar">
-                      <img src={member.avatar} alt={member.name} />
-                      <span className="member-name">{member.name}</span>
+                {users
+                  .filter(user => user.role === roleStat.role && user.isActive)
+                  .slice(0, 3)
+                  .map(user => (
+                    <div key={user.id} className="member-avatar">
+                      <img src={user.avatar} alt={user.name} />
+                      <span className="member-name">{user.name}</span>
                     </div>
                   ))}
                 </div>
               </motion.div>
-            );
-          })}
+          ))}
         </div>
       </div>
 
-      {/* Active Employees */}
+      {/* Active Team Members */}
       <div className="employees-section">
-        <h2>Active Team Members ({activeEmployees.length})</h2>
+        <h2>Active Team Members ({activeUsers.length})</h2>
         <div className="employees-grid">
-          {currentEmployees.map((employee, index) => {
-            const stats = getEmployeeStats(employee.id);
-            
-            return (
+          {currentUsers.map((user, index) => (
               <motion.div
-                key={employee.id}
+              key={user.id}
                 className="employee-card"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -202,69 +347,70 @@ const TeamManagement = () => {
                 <div className="employee-header">
                   <div className="employee-info">
                     <img 
-                      src={employee.avatar} 
-                      alt={employee.name}
+                    src={user.avatar} 
+                    alt={user.name}
                       className="employee-avatar"
                     />
                     <div className="employee-details">
-                      <h3>{employee.name}</h3>
-                      <p>{employee.email}</p>
+                    <h3>{user.name}</h3>
+                    <p>{user.email}</p>
                       <div className="employee-badges">
-                        <span className={`badge badge--${employee.role.toLowerCase()}`}>
-                          {employee.role}
+                      <span className={`badge badge--${getRoleBadgeColor(user.role)}`}>
+                        {getRoleDisplayName(user.role)}
                         </span>
                       </div>
                     </div>
                   </div>
                   <div className="employee-actions">
-                    <button 
-                      className="action-btn"
-                      onClick={() => setEditingEmployee(employee)}
-                    >
-                      <FiEdit2 size={16} />
-                    </button>
-                    <button 
-                      className="action-btn delete"
-                      onClick={() => handleDeleteEmployee(employee.id)}
-                    >
-                      <FiTrash2 size={16} />
-                    </button>
+                    {canManageEmployees() && (
+                      <>
+                        <button 
+                          className="action-btn"
+                        onClick={() => setEditingUser(user)}
+                        >
+                          <FiEdit2 size={16} />
+                        </button>
+                      {user.id !== currentUser.uid && (
+                        <button 
+                          className="action-btn delete"
+                          onClick={() => handleDeleteUser(user.id)}
+                        >
+                          <FiTrash2 size={16} />
+                        </button>
+                      )}
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className="employee-stats">
                   <div className="stat-item">
-                    <FiCheckCircle size={16} />
-                    <span>{stats.completed} completed</span>
+                  <FiUserCheck size={16} />
+                  <span>Active Member</span>
                   </div>
                   <div className="stat-item">
-                    <FiClock size={16} />
-                    <span>{stats.inProgress} in progress</span>
-                  </div>
-                  <div className="stat-item">
-                    <FiUser size={16} />
-                    <span>{stats.todo} pending</span>
+                  <FiShield size={16} />
+                  <span>{user.permissions?.includes('all') ? 'All Permissions' : user.permissions?.join(', ') || 'Basic Access'}</span>
                   </div>
                 </div>
 
                 <div className="employee-joined">
                   <FiCalendar size={14} />
-                  <span>Joined {formatTimestamp(employee.joinedAt)}</span>
+                <span>Joined {formatTimestamp(user.createdAt)}</span>
                 </div>
               </motion.div>
-            );
-          })}
+          ))}
         </div>
       </div>
 
-      {/* Inactive Employees */}
-      {inactiveEmployees.length > 0 && (
+      {/* Inactive Members */}
+      {inactiveUsers.length > 0 && (
         <div className="employees-section">
           <h2>Inactive Members</h2>
           <div className="employees-grid inactive">
-            {inactiveEmployees.map((employee, index) => (
+            {inactiveUsers.map((user, index) => (
               <motion.div
-                key={employee.id}
+                key={user.id}
                 className="employee-card inactive"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -273,28 +419,32 @@ const TeamManagement = () => {
                 <div className="employee-header">
                   <div className="employee-info">
                     <img 
-                      src={employee.avatar} 
-                      alt={employee.name}
+                      src={user.avatar} 
+                      alt={user.name}
                       className="employee-avatar"
                     />
                     <div className="employee-details">
-                      <h3>{employee.name}</h3>
-                      <p>{employee.email}</p>
+                      <h3>{user.name}</h3>
+                      <p>{user.email}</p>
                       <span className="inactive-label">Inactive</span>
                     </div>
                   </div>
                   <div className="employee-actions">
-                    <button 
-                      className="action-btn"
-                      onClick={() => updateEmployee(employee.id, { isActive: true })}
-                    >
-                      Reactivate
-                    </button>
+                    {canManageEmployees() && (
+                      <button 
+                        className="action-btn"
+                        onClick={() => handleEditUser({ ...user, isActive: true })}
+                      >
+                        Reactivate
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>
             ))}
           </div>
+        </div>
+      )}
         
         {/* Pagination */}
         {totalPages > 1 && (
@@ -355,87 +505,110 @@ const TeamManagement = () => {
             >
               Next
             </button>
-          </div>
-        )}
         </div>
       )}
 
-      {/* Add Employee Modal */}
+      {/* Add User Modal */}
       <Modal
-        isOpen={showAddEmployee}
-        onClose={() => setShowAddEmployee(false)}
-        title="Add New Employee"
+        isOpen={showAddUser}
+        onClose={() => setShowAddUser(false)}
+        title="Add New Team Member"
         size="medium"
       >
-        <form onSubmit={handleAddEmployee}>
-          {/* Avatar Upload Section */}
+        <form onSubmit={handleAddUser}>
+          {error && (
+            <div className="error-message">
+              <FiUser size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+          
           <div className="form-group">
-            <label>Avatar</label>
-            <div className="avatar-upload-container">
+            <label htmlFor="name">Full Name</label>
+            <div className="input-wrapper">
+              <FiUser className="input-icon" />
               <input 
-                type="file" 
-                accept="image/*" 
-                onChange={handleImageChange}
-                style={{ 
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  opacity: 0,
-                  cursor: 'pointer'
-                }}
-                id="avatar-upload"
-              />
-              {newEmployee.avatar ? (
-                <div className="avatar-preview">
-                  <img 
-                    src={newEmployee.avatar} 
-                    alt="Avatar Preview" 
-                    className="avatar-image"
+                type="text"
+                id="name"
+                name="name"
+                value={newUser.name}
+                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                placeholder="Enter full name"
+                required
                   />
                 </div>
-              ) : (
-                <div className="avatar-placeholder">
-                  <div className="avatar-icon">
-                    <FiUser size={32} />
                   </div>
-                  <p>Click to upload avatar</p>
-                  <p>PNG, JPG up to 2MB</p>
-                </div>
-              )}
+
+          <div className="form-group">
+            <label htmlFor="email">Email Address</label>
+            <div className="input-wrapper">
+              <FiMail className="input-icon" />
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                placeholder="Enter email address"
+                required
+              />
             </div>
           </div>
 
-          {/* Name Field */}
           <div className="form-group">
-            <label>Full Name</label>
+            <label htmlFor="password">Password</label>
+            <div className="input-wrapper">
+              <FiShield className="input-icon" />
             <input
-              type="text"
-              value={newEmployee.name}
-              onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
-              placeholder="Enter full name..."
+                type={showPassword ? 'text' : 'password'}
+                id="password"
+                name="password"
+                value={newUser.password}
+                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                placeholder="Enter password"
               required
             />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+              </button>
+            </div>
           </div>
 
-          {/* Email Field */}
           <div className="form-group">
-            <label>Email Address</label>
+            <label htmlFor="confirmPassword">Confirm Password</label>
+            <div className="input-wrapper">
+              <FiShield className="input-icon" />
             <input
-              type="email"
-              value={newEmployee.email}
-              onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
-              placeholder="Enter email address (optional)..."
-            />
+                type={showConfirmPassword ? 'text' : 'password'}
+                id="confirmPassword"
+                name="confirmPassword"
+                value={newUser.confirmPassword}
+                onChange={(e) => setNewUser({ ...newUser, confirmPassword: e.target.value })}
+                placeholder="Confirm password"
+                required
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                {showConfirmPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+              </button>
+            </div>
           </div>
 
-          {/* Role Field */}
           <div className="form-group">
-            <label>Role</label>
+            <label htmlFor="role">Role</label>
             <select
-              value={newEmployee.role}
-              onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
+              id="role"
+              name="role"
+              value={newUser.role}
+              onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+              required
             >
               {roles.map(role => (
                 <option key={role.value} value={role.value}>
@@ -446,88 +619,70 @@ const TeamManagement = () => {
           </div>
 
           <div className="modal-actions">
-            <button type="button" onClick={() => setShowAddEmployee(false)} className="btn btn--secondary">Cancel</button>
-            <button type="submit" className="btn btn--primary">Add Employee</button>
+            <button 
+              type="button" 
+              className="btn btn--secondary"
+              onClick={() => setShowAddUser(false)}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="btn btn--primary"
+              disabled={loading}
+            >
+              {loading ? 'Creating...' : 'Create Team Member'}
+            </button>
           </div>
         </form>
       </Modal>
 
-      {/* Edit Employee Modal */}
+      {/* Edit User Modal */}
       <Modal
-        isOpen={!!editingEmployee}
-        onClose={() => setEditingEmployee(null)}
-        title="Edit Employee"
+        isOpen={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        title="Edit Team Member"
         size="medium"
       >
-        <form onSubmit={handleEditEmployee}>
-          {/* Avatar Upload Section */}
-          <div className="form-group">
-            <label>Avatar</label>
-            <div className="avatar-upload-container">
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={e => handleImageChange(e, true)}
-                style={{ 
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  opacity: 0,
-                  cursor: 'pointer'
-                }}
-                id="avatar-upload-edit"
-              />
-              {editingEmployee?.avatar ? (
-                <div className="avatar-preview">
-                  <img 
-                    src={editingEmployee.avatar} 
-                    alt="Avatar Preview" 
-                    className="avatar-image"
-                  />
-                </div>
-              ) : (
-                <div className="avatar-placeholder">
-                  <div className="avatar-icon">
-                    <FiUser size={32} />
-                  </div>
-                  <p>Click to upload avatar</p>
-                  <p>PNG, JPG up to 2MB</p>
-                </div>
-              )}
+        <form onSubmit={handleEditUser}>
+          {error && (
+            <div className="error-message">
+              <FiUser size={16} />
+              <span>{error}</span>
             </div>
-          </div>
+          )}
 
-          {/* Name Field */}
           <div className="form-group">
-            <label>Full Name</label>
+            <label htmlFor="editName">Full Name</label>
             <input
               type="text"
-              value={editingEmployee?.name || ''}
-              onChange={(e) => setEditingEmployee({ ...editingEmployee, name: e.target.value })}
-              placeholder="Enter full name..."
+              id="editName"
+              name="name"
+              value={editingUser?.name || ''}
+              onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
               required
             />
           </div>
 
-          {/* Email Field */}
           <div className="form-group">
-            <label>Email Address</label>
+            <label htmlFor="editEmail">Email Address</label>
             <input
               type="email"
-              value={editingEmployee?.email || ''}
-              onChange={(e) => setEditingEmployee({ ...editingEmployee, email: e.target.value })}
-              placeholder="Enter email address (optional)..."
+              id="editEmail"
+              name="email"
+              value={editingUser?.email || ''}
+              disabled
             />
           </div>
 
-          {/* Role Field */}
           <div className="form-group">
-            <label>Role</label>
+            <label htmlFor="editRole">Role</label>
             <select
-              value={editingEmployee?.role || ''}
-              onChange={(e) => setEditingEmployee({ ...editingEmployee, role: e.target.value })}
+              id="editRole"
+              name="role"
+              value={editingUser?.role || ''}
+              onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+              required
             >
               {roles.map(role => (
                 <option key={role.value} value={role.value}>
@@ -538,8 +693,20 @@ const TeamManagement = () => {
           </div>
 
           <div className="modal-actions">
-            <button type="button" onClick={() => setEditingEmployee(null)} className="btn btn--secondary">Cancel</button>
-            <button type="submit" className="btn btn--primary">Save Changes</button>
+            <button 
+              type="button" 
+              className="btn btn--secondary"
+              onClick={() => setEditingUser(null)}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="btn btn--primary"
+              disabled={loading}
+            >
+              {loading ? 'Updating...' : 'Update Team Member'}
+            </button>
           </div>
         </form>
       </Modal>

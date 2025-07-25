@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiPlus, FiUser, FiSettings, FiLogOut, FiMenu } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTaskContext } from '../../contexts/TaskContext';
+import { userManagementService } from '../../services/firebaseService';
 import { useNavigate } from 'react-router-dom';
 import logo from '../../assets/logo.png';
 import Modal from '../Modal';
@@ -18,7 +19,8 @@ const AnimatedMenuIcon = ({ open }) => (
 
 const Header = ({ onMenuClick, sidebarOpen }) => {
   const { currentUser, logout } = useAuth();
-  const { addTask, employees } = useTaskContext();
+  const { addTask } = useTaskContext();
+  const [users, setUsers] = useState([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
@@ -32,6 +34,19 @@ const Header = ({ onMenuClick, sidebarOpen }) => {
   const navigate = useNavigate();
   const userMenuRef = useRef(null);
   const assigneeDropdownRef = useRef(null);
+
+  // Load users for assignment
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const allUsers = await userManagementService.getAllUsers();
+        setUsers(allUsers);
+      } catch (error) {
+        console.error('Error loading users:', error);
+      }
+    };
+    loadUsers();
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -70,13 +85,20 @@ const Header = ({ onMenuClick, sidebarOpen }) => {
     }
   };
 
-  // Filter employees based on search
-  const filteredEmployees = employees.filter(emp => 
-    emp.isActive && emp.name.toLowerCase().includes(assigneeSearch.toLowerCase())
+  // Filter users based on search
+  const filteredUsers = users.filter(user => 
+    user.isActive && user.name.toLowerCase().includes(assigneeSearch.toLowerCase())
   );
 
-  // Get selected employee name
-  const selectedEmployee = employees.find(emp => emp.id === quickTask.assignee);
+  // Get selected user name
+  const selectedUser = users.find(user => user.id === quickTask.assignee);
+
+  // Scroll dropdown into view when opened
+  useEffect(() => {
+    if (showAssigneeDropdown && assigneeDropdownRef.current) {
+      assigneeDropdownRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [showAssigneeDropdown]);
 
   const handleDropdownNav = (path) => {
     setShowUserMenu(false);
@@ -119,13 +141,15 @@ const Header = ({ onMenuClick, sidebarOpen }) => {
         
         <div className="navbar-nav ms-auto align-items-center">
           <div className="nav-item me-3">
-            <button 
-              className="btn btn-primary"
-              onClick={() => setShowQuickAdd(!showQuickAdd)}
-            >
-              <FiPlus className="me-2" />
-              Quick Add
-            </button>
+            {currentUser?.role === 'admin' && (
+              <button 
+                className="btn btn--primary"
+                onClick={() => setShowQuickAdd(!showQuickAdd)}
+              >
+                <FiPlus className="me-2" />
+                Quick Add
+              </button>
+            )}
           </div>
           
           <div className="nav-item dropdown" ref={userMenuRef}>
@@ -194,134 +218,136 @@ const Header = ({ onMenuClick, sidebarOpen }) => {
         title="Quick Add Task"
         size="medium"
       >
-        <form onSubmit={handleQuickAdd}>
-          <div className="form-group">
-            <label>Task Title</label>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Enter task title..."
-              value={quickTask.title}
-              onChange={(e) => setQuickTask({ ...quickTask, title: e.target.value })}
-              autoFocus
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>Description</label>
-            <textarea
-              className="form-control"
-              placeholder="Enter description..."
-              value={quickTask.description}
-              onChange={(e) => setQuickTask({ ...quickTask, description: e.target.value })}
-              rows={3}
-            />
-          </div>
-          <div className="form-group">
-            <label>Priority</label>
-            <select
-              className="form-select"
-              value={quickTask.priority}
-              onChange={(e) => setQuickTask({ ...quickTask, priority: e.target.value })}
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </div>
-
-          <div className="form-group" ref={assigneeDropdownRef}>
-            <label>Assignee *</label>
-            <div className="position-relative">
-              <div
-                className="form-control d-flex justify-content-between align-items-center"
-                style={{ cursor: 'pointer' }}
-                onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
+        {currentUser?.role === 'admin' && (
+          <form onSubmit={handleQuickAdd}>
+            <div className="form-group">
+              <label>Task Title</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Enter task title..."
+                value={quickTask.title}
+                onChange={(e) => setQuickTask({ ...quickTask, title: e.target.value })}
+                autoFocus
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Description</label>
+              <textarea
+                className="form-control"
+                placeholder="Enter description..."
+                value={quickTask.description}
+                onChange={(e) => setQuickTask({ ...quickTask, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div className="form-group">
+              <label>Priority</label>
+              <select
+                className="form-select"
+                value={quickTask.priority}
+                onChange={(e) => setQuickTask({ ...quickTask, priority: e.target.value })}
               >
-                <span style={{ color: quickTask.assignee ? '#333' : '#6c757d' }}>
-                  {selectedEmployee ? selectedEmployee.name : 'Select assignee...'}
-                </span>
-                <i className={`fas fa-chevron-${showAssigneeDropdown ? 'up' : 'down'}`}></i>
-              </div>
-              
-              {showAssigneeDropdown && (
-                <div 
-                  className="position-absolute w-100 bg-white border rounded mt-1"
-                  style={{ 
-                    zIndex: 1000, 
-                    maxHeight: '150px', 
-                    overflowY: 'auto',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                    top: '100%',
-                    left: 0
-                  }}
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+
+            <div className="form-group" ref={assigneeDropdownRef}>
+              <label>Assignee *</label>
+              <div className="position-relative">
+                <div
+                  className="form-control d-flex justify-content-between align-items-center"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setShowAssigneeDropdown(!showAssigneeDropdown)}
                 >
-                  <div className="p-2 border-bottom">
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      placeholder="Search employees..."
-                      value={assigneeSearch}
-                      onChange={(e) => setAssigneeSearch(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                  {filteredEmployees.length > 0 ? (
-                    filteredEmployees.map(employee => (
-                      <div
-                        key={employee.id}
-                        className="p-2 border-bottom"
-                        style={{ 
-                          cursor: 'pointer',
-                          backgroundColor: quickTask.assignee === employee.id ? '#f8f9fa' : 'white'
-                        }}
-                        onClick={() => {
-                          setQuickTask({ ...quickTask, assignee: employee.id });
-                          setShowAssigneeDropdown(false);
-                          setAssigneeSearch('');
-                        }}
-                      >
-                        <div className="d-flex align-items-center">
-                          <img 
-                            src={employee.avatar || 'https://via.placeholder.com/32'} 
-                            alt={employee.name}
-                            className="rounded-circle me-2"
-                            style={{ width: '24px', height: '24px' }}
-                          />
-                          <div>
-                            <div style={{ fontSize: '14px', fontWeight: '500' }}>
-                              {employee.name}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#6c757d' }}>
-                              {employee.role}
+                  <span style={{ color: quickTask.assignee ? '#333' : '#6c757d' }}>
+                    {selectedUser ? selectedUser.name : 'Select assignee...'}
+                  </span>
+                  <i className={`fas fa-chevron-${showAssigneeDropdown ? 'up' : 'down'}`}></i>
+                </div>
+                
+                {showAssigneeDropdown && (
+                  <div 
+                    className="position-absolute w-100 bg-white border rounded mt-1"
+                    style={{ 
+                      zIndex: 2000, 
+                      maxHeight: '200px', 
+                      overflowY: 'auto',
+                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                      top: '100%',
+                      left: 0
+                    }}
+                  >
+                    <div className="p-2 border-bottom">
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="Search users..."
+                        value={assigneeSearch}
+                        onChange={(e) => setAssigneeSearch(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    {filteredUsers.length > 0 ? (
+                      filteredUsers.map(user => (
+                        <div
+                          key={user.id}
+                          className="p-2 border-bottom"
+                          style={{ 
+                            cursor: 'pointer',
+                            backgroundColor: quickTask.assignee === user.id ? '#f8f9fa' : 'white'
+                          }}
+                          onClick={() => {
+                            setQuickTask({ ...quickTask, assignee: user.id });
+                            setShowAssigneeDropdown(false);
+                            setAssigneeSearch('');
+                          }}
+                        >
+                          <div className="d-flex align-items-center">
+                            <img 
+                              src={user.avatar || 'https://via.placeholder.com/32'} 
+                              alt={user.name}
+                              className="rounded-circle me-2"
+                              style={{ width: '24px', height: '24px' }}
+                            />
+                            <div>
+                              <div style={{ fontSize: '14px', fontWeight: '500' }}>
+                                {user.name}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#6c757d' }}>
+                                {user.role}
+                              </div>
                             </div>
                           </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className="p-2 text-muted text-center">
+                        No users found
                       </div>
-                    ))
-                  ) : (
-                    <div className="p-2 text-muted text-center">
-                      No employees found
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="modal-actions">
-            <button 
-              type="button" 
-              className="btn btn-secondary"
-              onClick={() => setShowQuickAdd(false)}
-            >
-              Cancel
-            </button>
-            <button type="submit" className="btn btn--primary">
-              Add Task
-            </button>
-          </div>
-        </form>
+            <div className="modal-actions">
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                onClick={() => setShowQuickAdd(false)}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn btn--primary">
+                Add Task
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </header>
   );

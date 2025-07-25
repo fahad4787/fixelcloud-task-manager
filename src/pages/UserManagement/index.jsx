@@ -25,7 +25,7 @@ import PageTitle from '../../components/PageTitle';
 import './UserManagement.scss';
 
 const UserManagement = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, canManageUsers } = useAuth();
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -34,13 +34,26 @@ const UserManagement = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'user',
+    role: 'designer',
     permissions: []
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Check if user has access to user management
+  if (!canManageUsers()) {
+    return (
+      <div className="page-container">
+        <div className="access-denied">
+          <FiShield size={48} />
+          <h3>Access Denied</h3>
+          <p>You don't have permission to access user management.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Load users on mount
   useEffect(() => {
@@ -74,45 +87,47 @@ const UserManagement = () => {
       return;
     }
 
-    try {
-      const auth = getAuth();
-      
-      // Create Firebase Auth user
-      const userCredential = await createUserWithEmailAndPassword(
-        auth, 
-        newUser.email, 
-        newUser.password
-      );
+    // Check if trying to create super manager and one already exists
+    if (newUser.role === 'super_manager') {
+      const existingSuperManager = users.find(user => user.role === 'super_manager');
+      if (existingSuperManager) {
+        setError('A Super Manager already exists. Only one Super Manager is allowed.');
+        setLoading(false);
+        return;
+      }
+    }
 
+    try {
       // Set user permissions based on role
       let permissions = [];
       switch (newUser.role) {
-        case 'super_admin':
+        case 'super_manager':
           permissions = ['all'];
           break;
-        case 'admin':
-          permissions = ['edit_tasks', 'delete_tasks', 'move_tasks', 'manage_tasks', 'manage_employees'];
+        case 'manager':
+          permissions = ['edit_tasks', 'delete_tasks', 'move_tasks', 'manage_tasks', 'assign_tasks'];
           break;
-        case 'user':
-          permissions = ['move_tasks'];
+        case 'designer':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+          break;
+        case 'developer':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+          break;
+        case 'bd':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
           break;
         default:
-          permissions = ['move_tasks'];
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
       }
 
-      // Create user profile in Firestore
-      const userProfile = {
+      // Create user using the service that handles sign-out
+      await userManagementService.createUserWithoutSignIn({
         name: newUser.name,
         email: newUser.email,
+        password: newUser.password,
         role: newUser.role,
-        permissions: permissions,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newUser.name)}&background=15a970&color=fff`,
-        isActive: true,
-        createdBy: currentUser.uid,
-        createdAt: new Date()
-      };
-
-      await setDoc(doc(db, 'users', userCredential.user.uid), userProfile);
+        permissions: permissions
+      });
 
       // Reset form
       setNewUser({
@@ -120,7 +135,7 @@ const UserManagement = () => {
         email: '',
         password: '',
         confirmPassword: '',
-        role: 'user',
+        role: 'designer',
         permissions: []
       });
       setShowAddUser(false);
@@ -144,21 +159,39 @@ const UserManagement = () => {
     setLoading(true);
     setError('');
 
+    // Check if trying to change role to super manager and one already exists
+    if (editingUser.role === 'super_manager') {
+      const existingSuperManager = users.find(user => 
+        user.role === 'super_manager' && user.id !== editingUser.id
+      );
+      if (existingSuperManager) {
+        setError('A Super Manager already exists. Only one Super Manager is allowed.');
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       // Set user permissions based on role
       let permissions = [];
       switch (editingUser.role) {
-        case 'super_admin':
+        case 'super_manager':
           permissions = ['all'];
           break;
-        case 'admin':
-          permissions = ['edit_tasks', 'delete_tasks', 'move_tasks', 'manage_tasks', 'manage_employees'];
+        case 'manager':
+          permissions = ['edit_tasks', 'delete_tasks', 'move_tasks', 'manage_tasks', 'assign_tasks'];
           break;
-        case 'user':
-          permissions = ['move_tasks'];
+        case 'designer':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+          break;
+        case 'developer':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
+          break;
+        case 'bd':
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
           break;
         default:
-          permissions = ['move_tasks'];
+          permissions = ['move_tasks', 'view_own_tasks', 'assign_tasks'];
       }
 
       await userManagementService.updateUserRole(editingUser.id, editingUser.role, permissions);
@@ -175,7 +208,7 @@ const UserManagement = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
-        // Note: This would require additional Firebase Auth admin SDK for production
+        // Note: This would require additional Firebase Auth manager SDK for production
         // For now, we'll just mark the user as inactive
         await userManagementService.updateUserRole(userId, 'inactive', []);
         await loadUsers();
@@ -187,26 +220,31 @@ const UserManagement = () => {
 
   const getRoleBadgeColor = (role) => {
     switch (role) {
-      case 'super_admin': return 'danger';
-      case 'admin': return 'warning';
-      case 'user': return 'primary';
+      case 'super_manager': return 'danger';
+      case 'manager': return 'warning';
+      case 'designer': return 'info';
+      case 'developer': return 'primary';
+      case 'bd': return 'success';
       default: return 'secondary';
     }
   };
 
   const getRoleDisplayName = (role) => {
     switch (role) {
-      case 'super_admin': return 'Super Admin';
-      case 'admin': return 'Admin';
-      case 'user': return 'User';
+      case 'super_manager': return 'Super Manager';
+      case 'manager': return 'Manager';
+      case 'designer': return 'Designer';
+      case 'developer': return 'Developer';
+      case 'bd': return 'Business Developer';
       default: return role;
     }
   };
 
   const roles = [
-    { value: 'user', label: 'User', description: 'Can move tasks and view content' },
-    { value: 'admin', label: 'Admin', description: 'Can edit, delete, and manage tasks' },
-    { value: 'super_admin', label: 'Super Admin', description: 'Full access to all features' }
+    { value: 'designer', label: 'Designer', description: 'Can manage design tasks and assign to team' },
+    { value: 'developer', label: 'Developer', description: 'Can manage development tasks and assign to team' },
+    { value: 'bd', label: 'Business Developer', description: 'Can manage business tasks and assign to team' },
+    { value: 'manager', label: 'Manager', description: 'Can edit, delete, and manage all tasks' }
   ];
 
   return (

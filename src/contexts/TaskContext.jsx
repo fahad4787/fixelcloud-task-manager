@@ -2,14 +2,14 @@ import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
-import { taskService, employeeService } from '../services/firebaseService';
+import { taskService } from '../services/firebaseService';
+import { useAuth } from './AuthContext';
 
 const TaskContext = createContext();
 
 // Initial state
 const initialState = {
   tasks: [],
-  employees: [],
   currentUser: null,
   filters: {
     status: 'all',
@@ -18,8 +18,7 @@ const initialState = {
   },
   sidebarOpen: false,
   loading: {
-    tasks: true,
-    employees: true
+    tasks: true
   }
 };
 
@@ -30,10 +29,6 @@ const actionTypes = {
   UPDATE_TASK: 'UPDATE_TASK',
   DELETE_TASK: 'DELETE_TASK',
   MOVE_TASK: 'MOVE_TASK',
-  SET_EMPLOYEES: 'SET_EMPLOYEES',
-  ADD_EMPLOYEE: 'ADD_EMPLOYEE',
-  UPDATE_EMPLOYEE: 'UPDATE_EMPLOYEE',
-  DELETE_EMPLOYEE: 'DELETE_EMPLOYEE',
   SET_FILTERS: 'SET_FILTERS',
   TOGGLE_SIDEBAR: 'TOGGLE_SIDEBAR',
   SET_CURRENT_USER: 'SET_CURRENT_USER',
@@ -80,39 +75,10 @@ const taskReducer = (state, action) => {
         )
       };
     
-
-    
-    case actionTypes.SET_EMPLOYEES:
-      return {
-        ...state,
-        employees: action.payload,
-        loading: { ...state.loading, employees: false }
-      };
-    
-    case actionTypes.ADD_EMPLOYEE:
-      return {
-        ...state,
-        employees: [action.payload, ...state.employees]
-      };
-    
-    case actionTypes.UPDATE_EMPLOYEE:
-      return {
-        ...state,
-        employees: state.employees.map(emp => 
-          emp.id === action.payload.id ? { ...emp, ...action.payload } : emp
-        )
-      };
-    
-    case actionTypes.DELETE_EMPLOYEE:
-      return {
-        ...state,
-        employees: state.employees.filter(emp => emp.id !== action.payload)
-      };
-    
     case actionTypes.SET_FILTERS:
       return {
         ...state,
-        filters: { ...state.filters, ...action.payload }
+        filters: action.payload
       };
     
     case actionTypes.TOGGLE_SIDEBAR:
@@ -141,6 +107,14 @@ const taskReducer = (state, action) => {
 // Provider component
 export const TaskProvider = ({ children }) => {
   const [state, dispatch] = useReducer(taskReducer, initialState);
+  const { currentUser: authUser } = useAuth();
+
+  // Update current user when auth user changes
+  useEffect(() => {
+    if (authUser) {
+      dispatch({ type: actionTypes.SET_CURRENT_USER, payload: authUser });
+    }
+  }, [authUser]);
 
   // Load data from Firebase on mount
   useEffect(() => {
@@ -149,15 +123,9 @@ export const TaskProvider = ({ children }) => {
       dispatch({ type: actionTypes.SET_TASKS, payload: tasks });
     });
 
-    // Subscribe to employees changes
-    const unsubscribeEmployees = employeeService.subscribeToEmployees((employees) => {
-      dispatch({ type: actionTypes.SET_EMPLOYEES, payload: employees });
-    });
-
     // Cleanup subscriptions on unmount
     return () => {
       unsubscribeTasks();
-      unsubscribeEmployees();
     };
   }, []);
 
@@ -173,14 +141,18 @@ export const TaskProvider = ({ children }) => {
         status,
         priority: taskData.priority || 'medium',
         assignee: taskData.assignee || null,
+        assignedBy: taskData.assignedBy || state.currentUser?.uid || 'system',
         createdBy: state.currentUser?.uid || 'system',
         dueDate: taskData.dueDate || null,
+        deadline: taskData.deadline || null,
+        estimatedHours: taskData.estimatedHours || 0,
+        actualHours: 0,
         tags: taskData.tags || [],
         comments: [],
         attachments: [],
         timeSpent: 0,
         estimatedTime: taskData.estimatedTime || 0,
-        order: 0 // <-- set order to 0 to put at the top
+        order: 0
       };
 
       await taskService.createTask(newTask);
@@ -232,44 +204,6 @@ export const TaskProvider = ({ children }) => {
     }
   };
 
-  const addEmployee = async (employeeData) => {
-    try {
-      const newEmployee = {
-        name: employeeData.name,
-        email: employeeData.email,
-        role: employeeData.role,
-        avatar: employeeData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(employeeData.name)}&background=15a970&color=fff`,
-        isActive: true
-      };
-
-      await employeeService.createEmployee(newEmployee);
-      toast.success('Employee added successfully!');
-    } catch (error) {
-      console.error('Error adding employee:', error);
-      toast.error('Failed to add employee');
-    }
-  };
-
-  const updateEmployee = async (employeeId, updates) => {
-    try {
-      await employeeService.updateEmployee(employeeId, updates);
-      toast.success('Employee updated successfully!');
-    } catch (error) {
-      toast.error('Failed to update employee');
-      console.error('Error updating employee:', error);
-    }
-  };
-
-  const deleteEmployee = async (employeeId) => {
-    try {
-      await employeeService.deleteEmployee(employeeId);
-      toast.success('Employee deleted successfully!');
-    } catch (error) {
-      toast.error('Failed to delete employee');
-      console.error('Error deleting employee:', error);
-    }
-  };
-
   const setFilters = (filters) => {
     dispatch({ type: actionTypes.SET_FILTERS, payload: filters });
   };
@@ -282,8 +216,25 @@ export const TaskProvider = ({ children }) => {
     dispatch({ type: actionTypes.SET_CURRENT_USER, payload: user });
   };
 
+  // Filter tasks based on user role and permissions
+  const getFilteredTasks = (tasks, currentUser) => {
+    if (!currentUser) return tasks;
+    
+    // Super manager and manager can see all tasks
+    if (currentUser.role === 'super_manager' || currentUser.role === 'manager') {
+      return tasks;
+    }
+    
+    // Other roles can only see tasks assigned to them or created by them
+    return tasks.filter(task => 
+      task.assignee === currentUser.uid || 
+      task.assignedBy === currentUser.uid ||
+      task.createdBy === currentUser.uid
+    );
+  };
+
   // Computed values
-  const filteredTasks = state.tasks.filter(task => {
+  const filteredTasks = getFilteredTasks(state.tasks, state.currentUser).filter(task => {
     if (state.filters.status !== 'all' && task.status !== state.filters.status) return false;
     if (state.filters.priority !== 'all' && task.priority !== state.filters.priority) return false;
     if (state.filters.assignee !== 'all' && task.assignee !== state.filters.assignee) return false;
@@ -297,16 +248,31 @@ export const TaskProvider = ({ children }) => {
     done: filteredTasks.filter(task => task.status === 'done')
   };
 
-  const getEmployeeById = (id) => {
-    return state.employees.find(emp => emp.id === id);
-  };
 
-  const getEmployeesByRole = (role) => {
-    return state.employees.filter(emp => emp.role === role && emp.isActive);
-  };
 
   const getTasksByAssignee = (assigneeId) => {
     return state.tasks.filter(task => task.assignee === assigneeId);
+  };
+
+  // Get tasks that are overdue
+  const getOverdueTasks = () => {
+    const now = new Date();
+    return state.tasks.filter(task => {
+      if (!task.deadline) return false;
+      const deadline = task.deadline.toDate ? task.deadline.toDate() : new Date(task.deadline);
+      return deadline < now && task.status !== 'done';
+    });
+  };
+
+  // Get tasks due soon (within 24 hours)
+  const getDueSoonTasks = () => {
+    const now = new Date();
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    return state.tasks.filter(task => {
+      if (!task.deadline) return false;
+      const deadline = task.deadline.toDate ? task.deadline.toDate() : new Date(task.deadline);
+      return deadline >= now && deadline <= tomorrow && task.status !== 'done';
+    });
   };
 
   const value = {
@@ -318,15 +284,12 @@ export const TaskProvider = ({ children }) => {
     deleteTask,
     moveTask,
     reorderTasksInColumn,
-    addEmployee,
-    updateEmployee,
-    deleteEmployee,
     setFilters,
     toggleSidebar,
     setCurrentUser,
-    getEmployeeById,
-    getEmployeesByRole,
-    getTasksByAssignee
+    getTasksByAssignee,
+    getOverdueTasks,
+    getDueSoonTasks
   };
 
   return (

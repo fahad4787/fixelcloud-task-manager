@@ -10,29 +10,184 @@
   position: relative;
   overflow: visible !important;
   background: #fff;
-  padding: 0 !important;
+  padding: 1.5rem !important;
   user-select: none;
+  z-index: 1;
   
   &:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-    z-index: 999999 !important;
+    z-index: 10 !important;
   }
   
- 
-  
-  .card-title {
-    font-weight: 600;
-    color: #212529;
-    line-height: 1.4;
-    margin: 0;
-    margin-bottom: 0.75rem;
+  &.compact {
+    padding: 1rem !important;
+    
+    .task-description {
+      display: none;
+    }
+    
+    .task-meta {
+      margin-top: 0.75rem;
+    }
   }
   
-  .card-text {
-    line-height: 1.6;
+  &.overdue {
+    border-left: 4px solid #dc2626;
+    background-color: #fef2f2;
+  }
+  
+  &.due-soon {
+    border-left: 4px solid #d97706;
+    background-color: #fffbeb;
+  }
+  
+  .task-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    
+    .task-title {
+      flex: 1;
+      
+      h4 {
+        font-weight: 600;
+        color: #212529;
+        line-height: 1.4;
+        margin: 0;
+        margin-bottom: 0.5rem;
+      }
+      
+      .deadline-badge {
+        display: inline-block;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-weight: 600;
+        
+        &.overdue {
+          background-color: #fef2f2;
+          color: #dc2626;
+          border: 1px solid #fecaca;
+        }
+        
+        &.due-soon {
+          background-color: #fffbeb;
+          color: #d97706;
+          border: 1px solid #fed7aa;
+        }
+      }
+    }
+    
+    .task-badges {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      
+      .badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-weight: 600;
+        text-transform: capitalize;
+        
+        &.priority {
+          &.success { background-color: #d1fae5; color: #065f46; }
+          &.warning { background-color: #fef3c7; color: #92400e; }
+          &.danger { background-color: #fee2e2; color: #991b1b; }
+          &.secondary { background-color: #f3f4f6; color: #374151; }
+        }
+        
+        &.status {
+          &.secondary { background-color: #f3f4f6; color: #374151; }
+          &.warning { background-color: #fef3c7; color: #92400e; }
+          &.info { background-color: #dbeafe; color: #1e40af; }
+          &.success { background-color: #d1fae5; color: #065f46; }
+        }
+      }
+    }
+    
+    .task-menu {
+      margin-left: 0.5rem;
+      
+      .menu-trigger {
+        background: none;
+        border: none;
+        padding: 0.25rem;
+        color: #6c757d;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+        
+        &:hover {
+          background-color: #f3f4f6;
+          color: #374151;
+        }
+      }
+    }
+  }
+  
+  .task-description {
+    margin-bottom: 1rem;
+    
+    p {
+      line-height: 1.6;
+      color: #6c757d;
+      margin: 0;
+      font-size: 0.9rem;
+    }
+  }
+  
+  .task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1rem;
+    font-size: 0.875rem;
     color: #6c757d;
-    margin: 0;
+    
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      
+      svg {
+        flex-shrink: 0;
+        color: #9ca3af;
+      }
+      
+      .text-danger {
+        color: #dc2626 !important;
+      }
+      
+      .text-warning {
+        color: #d97706 !important;
+      }
+    }
+  }
+  
+  .task-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    
+    .tag {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.25rem 0.5rem;
+      background-color: #f3f4f6;
+      color: #374151;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      
+      svg {
+        font-size: 0.7rem;
+      }
+    }
   }
 }
 
@@ -40,294 +195,130 @@
 // TASK MENU & DROPDOWN
 // =============================================================================
 
-// Menu button absolute at top right
-.menu-button {
-  position: absolute !important;
-  top: 8px !important;
-  right: 8px !important;
-  background: none !important;
-  border: none !important;
-  padding: 0 !important;
-  color: #6c757d !important;
-  z-index: 2 !important;
-  cursor: pointer !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 1.2rem !important;
-  box-shadow: none !important;
-  
-  &:hover, &:focus {
-    color: #111 !important;
-    background: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-  }
-}
-
-.task-menu { 
-  all: unset; 
-}
-
-.task-header { 
-  position: static; 
-}
-
-.badge-row {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  flex-wrap: wrap;
-}
-
-// Task Dropdown Menu
-.task-dropdown {
-  position: absolute !important;
-  top: 36px !important;
-  right: 8px !important;
-  min-width: 180px !important;
-  background: #fff !important;
-  border: 1px solid #e5e7eb !important;
-  border-radius: 12px !important;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.10) !important;
-  z-index: 1000 !important;
-  margin-top: 0.5rem !important;
-  padding: 0.2rem 0 !important;
-  animation: dropdown-fade-in 0.15s cubic-bezier(.4,0,.2,1) !important;
-}
-
-.dropdown-item {
-  display: flex !important;
-  align-items: center !important;
-  gap: 0.6rem !important;
-  width: 100% !important;
-  padding: 0.55rem 1rem !important;
-  background: none !important;
-  border: none !important;
-  text-align: left !important;
-  cursor: pointer !important;
-  font-size: 0.97rem !important;
-  color: #23272f !important;
-  font-weight: 500 !important;
-  transition: background 0.12s, color 0.12s !important;
-
-  &:hover {
-    background: #f3f4f6 !important;
-    color: #111827 !important;
-  }
-
-  svg {
-    flex-shrink: 0 !important;
-    color: #64748b !important;
-    font-size: 1.05em !important;
-    margin-right: 0.2rem !important;
-    align-self: center !important;
-    display: inline-block !important;
-    vertical-align: middle !important;
-  }
-
-  span {
-    flex: 1 !important;
-    font-weight: 500 !important;
-    display: flex !important;
-    align-items: center !important;
-  }
-
-  &.delete {
-    color: #e11d48 !important;
-    font-weight: 600 !important;
-    border-top: 1px solid #f3f4f6 !important;
-    margin-top: 0.2rem !important;
-    padding-top: 0.7rem !important;
-    
-    &:hover {
-      background: #fef2f2 !important;
-      color: #be123c !important;
-    }
-    
-    svg {
-      color: #e11d48 !important;
-    }
-  }
-}
-
-.dropdown-divider {
-  height: 1px !important;
-  background: #f3f4f6 !important;
-  margin: 0.3rem 0 0.1rem 0 !important;
-}
-
-// =============================================================================
-// TASK META INFORMATION
-// =============================================================================
-
-.task-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-  color: #6c757d;
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  
-  svg {
-    flex-shrink: 0;
-    color: #9ca3af;
-  }
-}
-
-.assignee-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.role-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border: 1px solid;
-  
-  // Developer role
-  &.bg-primary {
-    background: #e3f2fd !important;
-    color: #1976d2 !important;
-    border-color: #bbdefb !important;
-  }
-  
-  // Designer role
-  &.bg-info {
-    background: #e0f2f1 !important;
-    color: #00796b !important;
-    border-color: #b2dfdb !important;
-  }
-  
-  // BD role
-  &.bg-warning {
-    background: #fff3e0 !important;
-    color: #f57c00 !important;
-    border-color: #ffcc02 !important;
-  }
-  
-  // Default role
-  &.bg-secondary {
-    background: #f5f5f5 !important;
-    color: #616161 !important;
-    border-color: #e0e0e0 !important;
-  }
-}
-
-// =============================================================================
-// TASK TAGS
-// =============================================================================
-
-.task-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.tag {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  background: #f3f4f6;
-  color: #374151;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 500;
+.task-menu-dropdown {
+  position: fixed;
+  background: #fff;
   border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.10);
+  padding: 0.5rem 0;
+  z-index: 1000;
+  min-width: 180px;
+  animation: dropdown-fade-in 0.15s cubic-bezier(.4,0,.2,1);
+  
+  button {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.55rem 1rem;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.97rem;
+    color: #23272f;
+    font-weight: 500;
+    transition: background 0.12s, color 0.12s;
+
+    &:hover {
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    svg {
+      flex-shrink: 0;
+      color: #64748b;
+      font-size: 1.05em;
+    }
+
+    &.delete {
+      color: #e11d48;
+      font-weight: 600;
+      border-top: 1px solid #f3f4f6;
+      margin-top: 0.2rem;
+      padding-top: 0.7rem;
+      
+      &:hover {
+        background: #fef2f2;
+        color: #be123c;
+      }
+      
+      svg {
+        color: #e11d48;
+      }
+    }
+  }
+  
+  .dropdown-divider {
+    height: 1px;
+    background: #f3f4f6;
+    margin: 0.3rem 0 0.1rem 0;
+  }
+  
+  .move-options {
+    padding: 0.5rem 1rem;
+    
+    .move-label {
+      display: block;
+      font-size: 0.8rem;
+      color: #6b7280;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    button {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.9rem;
+      border-radius: 6px;
+      margin-bottom: 0.25rem;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
+@keyframes dropdown-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 // =============================================================================
-// COMPACT CARD STYLES
-// =============================================================================
-
-.task-card-compact {
-  border: none;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-  }
-  
-  .card-body {
-    padding: 1rem;
-  }
-  
-  .card-title {
-    font-weight: 600;
-    color: #212529;
-    font-size: 0.95rem;
-    margin: 0;
-  }
-  
-  .card-text {
-    font-size: 0.875rem;
-    line-height: 1.4;
-    color: #6c757d;
-    margin: 0;
-  }
-  
-  .badge {
-    font-size: 0.7rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-  }
-}
-
-// =============================================================================
-// RESPONSIVE DESIGN
+// RESPONSIVE ADJUSTMENTS
 // =============================================================================
 
 @media (max-width: 768px) {
-  .task-header {
-    flex-direction: column;
-    gap: 0.5rem;
+  .task-card {
+    padding: 1rem !important;
+    
+    .task-header {
+      .task-title {
+        h4 {
+          font-size: 1rem;
+        }
+      }
+      
+      .task-badges {
+        .badge {
+          font-size: 0.7rem;
+          padding: 0.2rem 0.4rem;
+        }
+      }
+    }
+    
+    .task-meta {
+      gap: 0.75rem;
+      font-size: 0.8rem;
+    }
   }
-  
-  .task-dropdown {
-    right: 0;
-    min-width: 180px;
-  }
-  
-  .task-meta {
-    gap: 0.75rem;
-  }
-  
-  .badge-row {
-    gap: 0.25rem;
-  }
-  
-  .badge {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.6rem;
-  }
-}
-
-// =============================================================================
-// OVERFLOW HANDLING
-// =============================================================================
-
-// Ensure dropdown is always visible
-.task-card-wrapper {
-  overflow: visible !important;
-  position: relative;
-}
-
-.project-board-column, .column-content {
-  overflow: visible !important;
 }

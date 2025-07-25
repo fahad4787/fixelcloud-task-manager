@@ -19,18 +19,33 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTaskContext } from '../../contexts/TaskContext';
+import { userManagementService } from '../../services/firebaseService';
 import TaskCard from '../../components/TaskCard';
 import PageTitle from '../../components/PageTitle';
 import { formatTimestamp, getTimestampForSort } from '../../utils/dateUtils';
 import './Dashboard.scss';
 
 const Dashboard = () => {
-  const { currentUser, canEditTasks, canManageTasks, canManageUsers, canManageEmployees } = useAuth();
+  const { currentUser, canEditTasks, canManageTasks, canManageUsers, canManageEmployees, canViewAnalytics } = useAuth();
   const { 
-    tasks, 
-    employees, 
-    getEmployeeById
+    filteredTasks, 
+    getOverdueTasks,
+    getDueSoonTasks
   } = useTaskContext();
+  const [users, setUsers] = useState([]);
+
+  // Load users for statistics
+  React.useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const allUsers = await userManagementService.getAllUsers();
+        setUsers(allUsers);
+      } catch (error) {
+        console.error('Error loading users:', error);
+      }
+    };
+    loadUsers();
+  }, []);
 
   // Color functions for badges
   const getPriorityColor = (priority) => {
@@ -53,27 +68,27 @@ const Dashboard = () => {
     }
   };
 
-  // Calculate statistics
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(task => task.status === 'done').length;
-  const inProgressTasks = tasks.filter(task => task.status === 'in-progress').length;
-  const pendingTasks = tasks.filter(task => task.status === 'todo').length;
-  const activeEmployees = employees.filter(emp => emp.isActive).length;
+  // Calculate statistics based on user's accessible tasks
+  const totalTasks = filteredTasks.length;
+  const completedTasks = filteredTasks.filter(task => task.status === 'done').length;
+  const inProgressTasks = filteredTasks.filter(task => task.status === 'in-progress').length;
+  const pendingTasks = filteredTasks.filter(task => task.status === 'todo').length;
+  const activeUsers = users.filter(user => user.isActive).length;
 
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-  const avgTasksPerEmployee = activeEmployees > 0 ? Math.round(totalTasks / activeEmployees) : 0;
+  const avgTasksPerUser = activeUsers > 0 ? Math.round(totalTasks / activeUsers) : 0;
 
-  // Get recent tasks
-  const recentTasks = tasks
+  // Get recent tasks (only accessible ones)
+  const recentTasks = filteredTasks
     .sort((a, b) => getTimestampForSort(b.createdAt) - getTimestampForSort(a.createdAt))
     .slice(0, 5);
 
-  // Get role performance
-  const roles = ['designer', 'developer', 'bd', 'admin', 'super_admin'];
+  // Get role performance (only for accessible tasks)
+  const roles = ['designer', 'developer', 'bd', 'manager', 'super_manager'];
   const roleStats = roles.map(role => {
-    const roleMembers = employees.filter(emp => emp.role === role && emp.isActive);
-    const roleTasks = tasks.filter(task => {
-      const assignee = employees.find(emp => emp.id === task.assignee);
+    const roleMembers = users.filter(user => user.role === role && user.isActive);
+    const roleTasks = filteredTasks.filter(task => {
+      const assignee = users.find(user => user.id === task.assignee);
       return assignee && assignee.role === role;
     });
     const completed = roleTasks.filter(t => t.status === 'done').length;
@@ -115,7 +130,7 @@ const Dashboard = () => {
     },
     {
       title: 'Active Members',
-      value: activeEmployees,
+      value: activeUsers,
       icon: FiUsers,
       color: 'var(--accent-color)',
       trend: '+2',
@@ -125,8 +140,8 @@ const Dashboard = () => {
 
   // Quick Actions based on user role
   const getQuickActions = () => {
-    // If the user is a basic 'user', only show Project Board
-    if (currentUser?.role === 'user') {
+    // For super manager: Project Board, Team Management, Analytics, User Management
+    if (currentUser?.role === 'super_manager') {
       return [
         {
           icon: FiFileText,
@@ -134,68 +149,112 @@ const Dashboard = () => {
           description: 'View and manage all tasks',
           link: '/project-board',
           color: 'var(--primary-color)'
+        },
+        {
+          icon: FiUsers,
+          title: 'Team Management',
+          description: 'Manage team members',
+          link: '/team',
+          color: 'var(--accent-color)'
+        },
+        {
+          icon: FiBarChart,
+          title: 'Analytics',
+          description: 'View performance metrics',
+          link: '/analytics',
+          color: 'var(--success-color)'
+        },
+        {
+          icon: FiUserPlus,
+          title: 'User Management',
+          description: 'Manage user accounts and roles',
+          link: '/users',
+          color: 'var(--primary-light)'
         }
       ];
     }
 
-    const actions = [
+    // For manager: Project Board, Team Management, Analytics
+    if (currentUser?.role === 'manager') {
+      return [
+        {
+          icon: FiFileText,
+          title: 'Project Board',
+          description: 'View and manage all tasks',
+          link: '/project-board',
+          color: 'var(--primary-color)'
+        },
+        {
+          icon: FiUsers,
+          title: 'Team Management',
+          description: 'Manage team members',
+          link: '/team',
+          color: 'var(--accent-color)'
+        },
+        {
+          icon: FiBarChart,
+          title: 'Analytics',
+          description: 'View performance metrics',
+          link: '/analytics',
+          color: 'var(--success-color)'
+        }
+      ];
+    }
+
+    // For designer, developer, bd: Project Board only
+    if (['designer', 'developer', 'bd'].includes(currentUser?.role)) {
+      return [
+        {
+          icon: FiFileText,
+          title: 'Project Board',
+          description: 'View and manage your tasks',
+          link: '/project-board',
+          color: 'var(--primary-color)'
+        }
+      ];
+    }
+
+    // Default fallback
+    return [
       {
         icon: FiFileText,
         title: 'Project Board',
-        description: 'View and manage all tasks',
+        description: 'View and manage tasks',
         link: '/project-board',
         color: 'var(--primary-color)'
       }
     ];
-
-    // Add team management for admin and super admin
-    if (canManageEmployees()) {
-      actions.push({
-        icon: FiUsers,
-        title: 'Team Management',
-        description: 'Manage team members',
-        link: '/team',
-        color: 'var(--accent-color)'
-      });
-    }
-
-    // Add third action based on user role
-    if (canManageUsers()) {
-      actions.push({
-        icon: FiUserPlus,
-        title: 'User Management',
-        description: 'Manage user accounts and roles',
-        link: '/users',
-        color: 'var(--primary-light)'
-      });
-    } else if (canEditTasks()) {
-      actions.push({
-        icon: FiBarChart,
-        title: 'Analytics',
-        description: 'View performance metrics',
-        link: '/analytics',
-        color: 'var(--success-color)'
-      });
-    } else {
-      actions.push({
-        icon: FiBarChart,
-        title: 'Analytics',
-        description: 'View performance metrics',
-        link: '/analytics',
-        color: 'var(--success-color)'
-      });
-    }
-
-    return actions;
   };
+
+  // Get overdue and due soon tasks
+  const overdueTasks = getOverdueTasks();
+  const dueSoonTasks = getDueSoonTasks();
 
   return (
     <div className="page-container">
       <PageTitle 
         title="Dashboard"
-        subtitle={`Welcome back, ${currentUser?.name}! Here's what's happening with your teams.`}
+        subtitle={`Welcome back, ${currentUser?.name}! Here's what's happening with your tasks.`}
         icon={FiHome}
       />
+
+      {/* Deadline Alerts */}
+      {(overdueTasks.length > 0 || dueSoonTasks.length > 0) && (
+        <div className="deadline-alerts">
+          {overdueTasks.length > 0 && (
+            <div className="alert alert-danger">
+              <FiAlertCircle size={16} />
+              <span>{overdueTasks.length} task(s) overdue</span>
+            </div>
+          )}
+          {dueSoonTasks.length > 0 && (
+            <div className="alert alert-warning">
+              <FiClock size={16} />
+              <span>{dueSoonTasks.length} task(s) due soon</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Statistics Cards */}
       <div className="stats-grid">
@@ -244,7 +303,7 @@ const Dashboard = () => {
                 </div>
               ) : (
                 recentTasks.map(task => {
-                  const assignee = getEmployeeById(task.assignee);
+                  const assignee = users.find(user => user.id === task.assignee);
                   return (
                     <div key={task.id} className="recent-task-row">
                       <div className="task-main">
@@ -264,59 +323,61 @@ const Dashboard = () => {
             </div>
           </motion.div>
 
-          {/* Team Performance */}
-          <motion.div 
-            className="team-performance-card"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <div className="team-performance-header">
-              <span className="performance-icon">📊</span>
-              <h3>Role Performance</h3>
-            </div>
-            <div className="team-performance-list">
-              {roleStats.length === 0 ? (
-                <div className="team-performance-empty">
-                  <span>🚩</span>
-                  <p>No role progress yet</p>
-                </div>
-              ) : (
-                roleStats.map(role => (
-                  <div key={role.name} className="team-row">
-                    <div className="team-accent" style={{ 
-                      background: role.role === 'designer' ? 'var(--primary-color)' : 
-                                 role.role === 'developer' ? '#7b1fa2' : 
-                                 role.role === 'bd' ? '#388e3c' :
-                                 role.role === 'admin' ? '#ff9800' : '#f44336'
-                    }} />
-                    <div className="team-info">
-                      <span className="team-name">{role.name}</span>
-                      <span className="team-progress-numbers">{role.completed}/{role.total} ({role.members} members)</span>
-                    </div>
-                    <div className="team-progress-bar-bg">
-                      <div
-                        className="team-progress-bar-fill"
-                        style={{
-                          width: role.total > 0 ? `${role.completionRate}%` : '0%',
-                          background: role.role === 'designer'
-                            ? 'linear-gradient(90deg, var(--primary-color), var(--primary-light))'
-                            : role.role === 'developer'
-                            ? 'linear-gradient(90deg, #7b1fa2, #b39ddb)'
-                            : role.role === 'bd'
-                            ? 'linear-gradient(90deg, #388e3c, #66bb6a)'
-                            : role.role === 'admin'
-                            ? 'linear-gradient(90deg, #ff9800, #ffb74d)'
-                            : 'linear-gradient(90deg, #f44336, #ef5350)'
-                        }}
-                      />
-                    </div>
-                    <span className="team-progress-percent">{role.total > 0 ? `${role.completionRate}%` : '0%'}</span>
+          {/* Team Performance - Only show if user can view analytics */}
+          {canViewAnalytics() && (
+            <motion.div 
+              className="team-performance-card"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <div className="team-performance-header">
+                <span className="performance-icon">📊</span>
+                <h3>Role Performance</h3>
+              </div>
+              <div className="team-performance-list">
+                {roleStats.length === 0 ? (
+                  <div className="team-performance-empty">
+                    <span>🚩</span>
+                    <p>No role progress yet</p>
                   </div>
-                ))
-              )}
-            </div>
-          </motion.div>
+                ) : (
+                  roleStats.map(role => (
+                    <div key={role.name} className="team-row">
+                      <div className="team-accent" style={{ 
+                        background: role.role === 'designer' ? 'var(--primary-color)' : 
+                                   role.role === 'developer' ? '#7b1fa2' : 
+                                   role.role === 'bd' ? '#388e3c' :
+                                   role.role === 'manager' ? '#ff9800' : '#f44336'
+                      }} />
+                      <div className="team-info">
+                        <span className="team-name">{role.name}</span>
+                        <span className="team-progress-numbers">{role.completed}/{role.total} ({role.members} members)</span>
+                      </div>
+                      <div className="team-progress-bar-bg">
+                        <div
+                          className="team-progress-bar-fill"
+                          style={{
+                            width: role.total > 0 ? `${role.completionRate}%` : '0%',
+                            background: role.role === 'designer'
+                              ? 'linear-gradient(90deg, var(--primary-color), var(--primary-light))'
+                              : role.role === 'developer'
+                              ? 'linear-gradient(90deg, #7b1fa2, #b39ddb)'
+                              : role.role === 'bd'
+                              ? 'linear-gradient(90deg, #388e3c, #66bb6a)'
+                              : role.role === 'manager'
+                              ? 'linear-gradient(90deg, #ff9800, #ffb74d)'
+                              : 'linear-gradient(90deg, #f44336, #ef5350)'
+                          }}
+                        />
+                      </div>
+                      <span className="team-progress-percent">{role.total > 0 ? `${role.completionRate}%` : '0%'}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Quick Actions */}

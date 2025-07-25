@@ -493,9 +493,9 @@
           border-radius: 50%;
           &.designer { background: var(--primary-color); }
           &.developer { background: #7b1fa2; }
-          &.bd { background: #388e3c; }
-          &.admin { background: #ff9800; }
-          &.super_admin { background: #f44336; }
+          &.bd { background: #4caf50; }
+          &.manager { background: #ff9800; }
+          &.super_manager { background: #f44336; }
           &.unassigned { background: var(--gray-400); }
         }
         .task-title {
@@ -541,6 +541,33 @@
       span {
         font-size: 2rem;
       }
+    }
+  }
+} 
+
+.deadline-alerts {
+  margin-bottom: 1.5rem;
+  
+  .alert {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    
+    &.alert-danger {
+      background-color: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+    }
+    
+    &.alert-warning {
+      background-color: #fffbeb;
+      border: 1px solid #fed7aa;
+      color: #d97706;
     }
   }
 } 
